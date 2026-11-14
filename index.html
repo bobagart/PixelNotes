@@ -56,13 +56,13 @@ body.connecting #view{cursor:crosshair}
 #menu .msw{display:flex;gap:6px;padding:6px 10px}
 #menu .msw button{width:20px;height:20px;padding:0;border:1px solid var(--line);border-radius:50%}
 .card .h b{cursor:pointer;padding:0 6px;color:var(--mut);font-weight:400}
-.card .t{color:#000;flex:1;padding:8px;outline:0;overflow:hidden;cursor:text;font-size:16px}
+.card .t{color:#000;flex:1;padding:8px;outline:0;overflow:hidden;cursor:text;font-size:16px;overflow-wrap:anywhere;word-break:break-word}
 .card img{flex:1;min-height:0;width:100%;object-fit:contain;display:block}
 .card.img{background:#f0f0f000!important}
 .card.shape{background:#f0f0f000!important;border:0;box-shadow:none}
 .shape svg{position:absolute;left:0;top:18px;width:100%;height:calc(100% - 18px)}
 .shape svg *{fill:var(--fill);stroke:#555;stroke-width:2;vector-effect:non-scaling-stroke}
-.shape .t{position:absolute;left:8%;right:8%;top:calc(18px + 6%);bottom:6%;padding:0;display:flex;align-items:safe center;justify-content:center;text-align:center;color:#000}
+.shape .t{position:absolute;left:8%;right:8%;top:calc(18px + 6%);bottom:6%;padding:0;display:block;text-align:center;color:#000}
 #grip{width:5px;cursor:col-resize;flex:none;background:var(--line);opacity:.5}
 #grip:hover{background:var(--acc);opacity:1}
 body.noside #side,body.noside #grip{display:none}
@@ -319,7 +319,7 @@ if(!S||!S.boards||!S.boards.length)S={cur:0,boards:[]},newBoard();
 function save(){
   if(board().mode=='doc')board().html=$('#page').innerHTML;else board().items=[...document.querySelectorAll('.card')].map(c=>{const t=c.querySelector('.t'),d=c.dataset;
     return{id:d.id,type:d.type,x:parseFloat(c.style.left),y:parseFloat(c.style.top),w:c.offsetWidth,h:c.offsetHeight,
-      html:t?t.innerHTML:'',bg:c.style.background,shape:d.shape,group:d.group,fill:c.style.getPropertyValue('--fill'),
+      html:t?t.innerHTML:'',bg:c.style.background,shape:d.shape,group:d.group,fs:+d.fs||undefined,fill:c.style.getPropertyValue('--fill'),
       src:d.type=='img'?c.querySelector('img').src:undefined}});
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert('Could not save: browser storage is full (try fewer or smaller images)')}
   clearTimeout(dirtyT);dirtyT=setTimeout(refreshDirty,600);
@@ -355,8 +355,12 @@ function load(){
 // cards and shapes grow with their text instead of scrolling
 // shapes keep their size: text shrinks to fit inside the outline (min 6px)
 function fitShape(c){const t=c.querySelector('.t');if(!t||c.dataset.type!='shape')return;
-  let fs=20;t.style.fontSize=fs+'px';
-  while(fs>6&&(t.scrollHeight>t.clientHeight+1||t.scrollWidth>t.clientWidth+1))t.style.fontSize=--fs+'px'}
+  let fs=+c.dataset.fs||20;t.style.paddingTop='0';t.style.fontSize=fs+'px';
+  while(fs>6&&(t.scrollHeight>t.clientHeight+1||t.scrollWidth>t.clientWidth+1))t.style.fontSize=--fs+'px';
+  const box=t.getBoundingClientRect(),r=document.createRange();r.selectNodeContents(t);
+  const rs=[...r.getClientRects()];if(!rs.length||!box.height||!t.clientHeight)return;
+  const k=t.clientHeight/box.height,h=(Math.max(...rs.map(x=>x.bottom))-Math.min(...rs.map(x=>x.top)))*k; // k undoes the board zoom
+  t.style.paddingTop=Math.max(0,(t.clientHeight-h)/2)+'px'}
 function grow(c){if(c.dataset.type=='shape')return fitShape(c);const t=c.querySelector('.t');if(!t)return;const d=t.scrollHeight-t.clientHeight;if(d>0)c.style.height=c.offsetHeight+d+'px'}
 const growAll=()=>document.querySelectorAll('.card').forEach(grow);
 const ro=new ResizeObserver(es=>{es.forEach(en=>fitShape(en.target));draw()});
@@ -371,6 +375,7 @@ function addEl(it){
     (type=='img'?'<img draggable="false" alt="">':(type=='shape'?`<svg viewBox="0 0 100 100" preserveAspectRatio="none">${SHAPES[it.shape]}</svg>`:'')+'<div class="t" contenteditable="true"></div>');
   if(type=='img')c.querySelector('img').src=it.src;
   const t=c.querySelector('.t');if(t){t.innerHTML=it.html||'';t.oninput=()=>{grow(c);save()}}
+  if(it.fs){c.dataset.fs=it.fs;if(t&&type!='shape')t.style.fontSize=it.fs+'px'}
   c.querySelector('b').onclick=()=>{c.remove();ro.unobserve(c);board().links=board().links.filter(l=>!l.includes(it.id));draw();save()};
   c.querySelector('.h').onpointerdown=e=>{
     if(conn||pen)return; // connect and draw modes handle clicks in capture listeners
@@ -571,7 +576,8 @@ function place(px,py){ // screen point -> world coords
   const v=board().v,r=view.getBoundingClientRect();return{x:(px-r.left-v.x)/v.z,y:(py-r.top-v.y)/v.z}
 }
 const ctr=()=>{const r=view.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]};
-function newEl(it,px,py){const p=place(px,py);const c=addEl({...it,x:p.x-it.w/2,y:p.y-it.h/2});save();return c}
+let defFs=0;
+function newEl(it,px,py){if(defFs&&!it.fs&&it.type!='img')it={...it,fs:defFs};const p=place(px,py);const c=addEl({...it,x:p.x-it.w/2,y:p.y-it.h/2});save();return c}
 view.ondblclick=e=>{if(!pen&&(e.target===view||e.target===$('#world')))newEl({w:220,h:140},e.clientX,e.clientY).querySelector('.t').focus()};
 $('#add').onclick=()=>newEl({w:220,h:140},...ctr());
 $('#shape').onchange=e=>{if(e.target.value)newEl({type:'shape',shape:e.target.value,w:160,h:120},...ctr());e.target.value=''};
@@ -603,9 +609,9 @@ view.ondrop=e=>{e.preventDefault();addImages(e.dataTransfer.files,e.clientX,e.cl
 // formatting: toolbar clicks must not steal the text selection
 let range=null;
 document.addEventListener('selectionchange',()=>{
-  const s=getSelection();
-  if(s.rangeCount&&s.anchorNode&&(s.anchorNode.parentElement||{}).closest&&s.anchorNode.parentElement.closest('.t')){range=s.getRangeAt(0).cloneRange();
-    if(document.activeElement!==$('#size'))$('#size').value=Math.round(parseFloat(getComputedStyle(s.anchorNode.parentElement).fontSize))||16}
+  const s=getSelection(),n=s.rangeCount&&s.anchorNode,el=n&&(n.nodeType==1?n:n.parentElement); // an empty box puts the caret on the box itself
+  if(el&&el.closest&&el.closest('.t')){range=s.getRangeAt(0).cloneRange();
+    if(document.activeElement!==$('#size'))$('#size').value=Math.round(parseFloat(getComputedStyle(el).fontSize))||16}
 });
 function fmt(cmd,val){
   if(!range)return;
@@ -618,9 +624,23 @@ document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>fmt(b.dataset.c))
 $('#font').onchange=e=>{if(e.target.value)fmt('fontName',e.target.value);e.target.value=''};
 // execCommand only knows sizes 1-7, so tag with 7 and rewrite to the exact px
 function setSize(px){
-  px=Math.min(200,Math.max(6,+px||16));fmt('fontSize',7);
+  px=Math.min(200,Math.max(6,+px||16));$('#size').value=px;
+  const node=range&&range.startContainer,ed=node&&(node.nodeType==1?node:node.parentElement).closest('.t');
+  if(ed&&range.collapsed){
+    const card=ed.closest('.card');
+    if(card&&!ed.textContent.replace(/\u200B/g,'').trim()){ // empty box: change the whole box's size
+      card.dataset.fs=px;if(card.dataset.type=='shape')fitShape(card);else{ed.style.fontSize=px+'px';grow(card)}
+      ed.focus();save();return}
+    // caret inside text: what you type next comes out in the new size
+    ed.focus();const sp=document.createElement('span');sp.style.fontSize=px+'px';sp.textContent='\u200B';
+    range.insertNode(sp);const nr=document.createRange();nr.setStart(sp.firstChild,1);nr.collapse(true);
+    const sel=getSelection();sel.removeAllRanges();sel.addRange(nr);range=nr.cloneRange();save();return}
+  if(!ed&&picked.size){ // nothing typed into, but items selected with the Select tool
+    picked.forEach(c=>{const t=c.querySelector('.t');if(!t)return;c.dataset.fs=px;if(c.dataset.type=='shape')fitShape(c);else{t.style.fontSize=px+'px';grow(c)}});save();return}
+  if(!ed){defFs=px;return} // nothing selected: the next new card or shape starts at this size
+  fmt('fontSize',7);
   document.querySelectorAll('span[style*="xxx-large"],font[size="7"]').forEach(f=>{f.removeAttribute('size');f.style.fontSize=px+'px'});
-  $('#size').value=px;growAll();save();
+  growAll();save();
 }
 $('#size').onchange=e=>setSize(e.target.value);
 const step=d=>setSize((+$('#size').value||16)+d);
@@ -890,7 +910,16 @@ function table(t,st){
 
 // ---- whiteboard -> canvas (used by PNG and Word)
 const htmlLines=h=>{const d=document.createElement('div');d.innerHTML=(h||'').replace(/<([/](div|p|h[1-6]|li|tr)|br)[^>]*>/g,'$&\n');return d.textContent.replace(/\n{2,}/g,'\n').trim()};
-function wrapText(ctx,text,maxW){const out=[];text.split('\n').forEach(line=>{let cur='';line.split(' ').forEach(w=>{const t=cur?cur+' '+w:w;if(ctx.measureText(t).width>maxW&&cur){out.push(cur);cur=w}else cur=t});out.push(cur)});return out}
+function wrapText(ctx,text,maxW){const out=[];
+  text.split('\n').forEach(line=>{let cur='';
+    line.split(' ').forEach(w=>{
+      while(w.length>1&&ctx.measureText((cur?cur+' ':'')+w).width>maxW&&ctx.measureText(w).width>maxW){ // a word wider than the box
+        let n=w.length;while(n>1&&ctx.measureText((cur?cur+' ':'')+w.slice(0,n)).width>maxW)n--;
+        if(n<=1&&cur){out.push(cur);cur='';continue}
+        out.push((cur?cur+' ':'')+w.slice(0,n));cur='';w=w.slice(n)}
+      const t=cur?cur+' '+w:w;if(ctx.measureText(t).width>maxW&&cur){out.push(cur);cur=w}else cur=t});
+    out.push(cur)});
+  return out}
 async function renderBoardCanvas(){
   try{await document.fonts.load('20px VT323')}catch(e){}
   const b=board(),pts=[];
@@ -921,8 +950,8 @@ async function renderBoardCanvas(){
     }
     if(t!='img'){
       c.save();c.beginPath();c.rect(x,y,w,h);c.clip();
-      c.fillStyle='#000';c.font=FONT;c.textBaseline='top';
-      const inset=t=='shape'?(i.shape=='rect'?.1:i.shape=='ellipse'?.16:.25):0,pd=8,lines=wrapText(c,htmlLines(i.html),w-2*pd-2*w*inset),lh=22;
+      const fz=+i.fs||20;c.fillStyle='#000';c.font=fz+'px VT323,"Courier New",monospace';c.textBaseline='top';
+      const inset=t=='shape'?(i.shape=='rect'?.1:i.shape=='ellipse'?.16:.25):0,pd=8,lines=wrapText(c,htmlLines(i.html),w-2*pd-2*w*inset),lh=Math.round(fz*1.1);
       c.textAlign=t=='shape'?'center':'left';
       const ty=t=='shape'?y+(h-lines.length*lh)/2:y+pd;
       lines.forEach((ln,j)=>c.fillText(ln,t=='shape'?x+w/2:x+pd,ty+j*lh));
@@ -1022,7 +1051,7 @@ function cleanFile(f){
   const pages=(f.pages||[]).filter(p=>p&&typeof p=='object').map(p=>({
     label:String(p.label||'Page').slice(0,80),mode:p.mode=='doc'?'doc':undefined,html:p.mode=='doc'?clean(p.html):undefined,
     items:(p.items||[]).map(i=>({id:safeId(i.id),type:/^(card|shape|img)$/.test(i.type)?i.type:'card',x:+i.x||0,y:+i.y||0,w:+i.w||220,h:+i.h||140,
-      html:clean(i.html),bg:safeCss(i.bg),fill:safeCss(i.fill),shape:SHAPES[i.shape]?i.shape:'rect',group:i.group?safeId(i.group):undefined,
+      html:clean(i.html),bg:safeCss(i.bg),fill:safeCss(i.fill),shape:SHAPES[i.shape]?i.shape:'rect',group:i.group?safeId(i.group):undefined,fs:Math.min(200,Math.max(6,+i.fs||0))||undefined,
       src:i.type=='img'&&/^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(i.src||'')?i.src:''})),
     links:(p.links||[]).filter(l=>Array.isArray(l)&&l.length==2).map(l=>[safeId(l[0]),safeId(l[1])]),
     strokes:(p.strokes||[]).map(st=>({p:(st.p||[]).map(q=>[+q[0]||0,+q[1]||0]),c:safeCss(st.c)||'#000000',w:+st.w||4,o:st.o?+st.o:undefined})),

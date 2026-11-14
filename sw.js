@@ -1,5 +1,5 @@
 // PixelNotes service worker: cache the app so it opens offline. Bump CACHE when you ship a new version.
-const CACHE = 'pixelnotes-v7';
+const CACHE = 'pixelnotes-v8';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icons/logo.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
