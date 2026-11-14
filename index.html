@@ -603,6 +603,31 @@ addEventListener('paste',e=>{
   const fs=[...e.clipboardData.files].filter(f=>f.type.startsWith('image/'));
   if(fs.length){e.preventDefault();addImages(fs,...ctr())}
 });
+// Paste text: whatever app it came from, insert clean editable text. Pasted content can carry
+// "not editable" bits, locked selection styles or white-on-dark colours that break typing and Backspace.
+// Cards and shapes take plain text; document pages keep bold, italic, underline, lists and tables.
+const KEEP_TAGS=/^(B|STRONG|I|EM|U|S|STRIKE|DEL|BR|P|DIV|H[1-6]|UL|OL|LI|TABLE|THEAD|TBODY|TR|TD|TH|SPAN|SUB|SUP|BLOCKQUOTE|PRE|CODE)$/;
+const KEEP_CSS=['font-weight','font-style','text-decoration'];
+function cleanPaste(html){
+  const t=document.createElement('template');t.innerHTML=html;
+  t.content.querySelectorAll('script,style,meta,link,title,iframe,object,embed,svg,img,button,input,select,textarea,form').forEach(e=>e.remove());
+  [...t.content.querySelectorAll('*')].reverse().forEach(e=>{
+    if(!KEEP_TAGS.test(e.tagName)){e.replaceWith(...e.childNodes);return}
+    const css=KEEP_CSS.map(k=>e.style.getPropertyValue(k)?k+':'+e.style.getPropertyValue(k):'').filter(Boolean).join(';');
+    [...e.attributes].forEach(a=>{if(a.name!='colspan'&&a.name!='rowspan')e.removeAttribute(a.name)});
+    if(css)e.setAttribute('style',css)});
+  return t.innerHTML;
+}
+document.addEventListener('paste',e=>{
+  const ed=e.target&&e.target.closest&&e.target.closest('.t');if(!ed||!e.clipboardData)return;
+  if([...e.clipboardData.files].some(f=>f.type.startsWith('image/')))return; // pictures go through the image paste below
+  const html=e.clipboardData.getData('text/html'),text=e.clipboardData.getData('text/plain');
+  if(!html&&!text)return;
+  e.preventDefault();
+  if(ed.id=='page'&&html)document.execCommand('insertHTML',false,cleanPaste(html));
+  else{const tp=document.createElement('template');tp.innerHTML=html;document.execCommand('insertText',false,text||tp.content.textContent)}
+  const card=ed.closest('.card');if(card)grow(card);save();
+},true);
 view.ondragover=e=>e.preventDefault();
 view.ondrop=e=>{e.preventDefault();addImages(e.dataTransfer.files,e.clientX,e.clientY)};
 
