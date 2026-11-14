@@ -405,8 +405,8 @@ function addEl(it){
     const ms=(picked.has(c)?[...picked]:grp(c)).map(m=>[m,parseFloat(m.style.left),parseFloat(m.style.top)]);
     c.parentNode.append(c);
     const mv=e=>{ms.forEach(([m,sx,sy])=>{m.style.left=sx+(e.clientX-ox)/z+'px';m.style.top=sy+(e.clientY-oy)/z+'px'});draw()};
-    const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);save()};
-    addEventListener('pointermove',mv);addEventListener('pointerup',up);
+    const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);save()};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
   };
     c.onpointerup=save; // catches CSS resize
   c.oncontextmenu=e=>cardMenu(e,c);
@@ -478,10 +478,10 @@ $('#view').addEventListener('pointerdown',e=>{
   const vr=$('#view').getBoundingClientRect(),x0=e.clientX,y0=e.clientY,m=$('#marq');m.hidden=false;
   const box=e=>({l:Math.min(x0,e.clientX),r:Math.max(x0,e.clientX),t:Math.min(y0,e.clientY),b:Math.max(y0,e.clientY)});
   const mv=e=>{const b=box(e);Object.assign(m.style,{left:b.l-vr.left+'px',top:b.t-vr.top+'px',width:b.r-b.l+'px',height:b.b-b.t+'px'})};
-  const up=e=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);m.hidden=true;const b=box(e);
+  const up=e=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);m.hidden=true;const b=box(e);
     document.querySelectorAll('.card').forEach(c=>{const r=c.getBoundingClientRect();
       if(r.right>=b.l&&r.left<=b.r&&r.bottom>=b.t&&r.top<=b.b)pick(grp(c))})};
-  mv(e);addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  mv(e);addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
 },true);
 
 // freehand drawing: point lists in world coords (whiteboard) or sheet px (document), on a layer above the content
@@ -530,9 +530,16 @@ function applyHL(pts){
     document.execCommand('styleWithCSS',false,true);document.execCommand('hiliteColor',false,hlC)});
   growAll();
 }
+// fingers currently on the screen (phones and tablets)
+const touches=new Set();let curStroke=null;
+addEventListener('pointerdown',e=>{if(e.pointerType=='touch')touches.add(e.pointerId)},true);
+['pointerup','pointercancel'].forEach(t=>addEventListener(t,e=>touches.delete(e.pointerId),true));
 function penDown(e){
   if(!pen)return;
   e.stopPropagation();e.preventDefault();
+  if(e.pointerType=='touch'&&touches.size>1){if(curStroke)curStroke.cancel();return} // two fingers = pinch, not ink
+  if(curStroke)curStroke.end();
+  const pid=e.pointerId;
   const mode=pen.mode,doc=inDoc(),sr=doc&&$('#sheet').getBoundingClientRect();
   const wp=e=>{const q=doc?{x:(e.clientX-sr.left)/docZoom,y:(e.clientY-sr.top)/docZoom}:place(e.clientX,e.clientY);return[Math.round(q.x*10)/10,Math.round(q.y*10)/10]};
   const z=doc?docZoom:board().v.z,list=board().strokes,g=$(doc?'#dink':'#ink'),raw=[[e.clientX,e.clientY]];let el,st;
@@ -542,10 +549,11 @@ function penDown(e){
   if(mode=='erase')erase(e);
   else{st={p:[wp(e)],c:mode=='hl'?hlC:penC,w:mode=='hl'?16/z:+$('#pw').value,o:mode=='hl'?.45:(+$('#po').value<100?+$('#po').value/100:undefined)};
     if(mode=='draw'){list.push(st);redoStack.length=0}el=inkPath(st);g.append(el)}
-  const mv=e=>{if(!st)return erase(e);st.p.push(wp(e));raw.push([e.clientX,e.clientY]);el.setAttribute('d',pathD(st))};
-  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);
-    if(mode=='hl'&&st){el.remove();applyHL(raw)}save()};
-  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  const mv=e=>{if(e.pointerId!==pid)return;if(!st)return erase(e);st.p.push(wp(e));raw.push([e.clientX,e.clientY]);el.setAttribute('d',pathD(st))};
+  const stop=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);curStroke=null};
+  const up=e=>{if(e&&e.pointerId!==pid)return;stop();if(mode=='hl'&&st){el.remove();applyHL(raw)}save()};
+  curStroke={end:up.bind(null,null),cancel:()=>{stop();if(st){el.remove();const i=list.indexOf(st);if(i>=0)list.splice(i,1)}renderInk()}};
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
 }
 $('#view').addEventListener('pointerdown',penDown,true);
 $('#docwrap').addEventListener('pointerdown',penDown,true);
@@ -568,8 +576,8 @@ view.onpointerdown=e=>{
   if(e.target!==view&&e.target!==$('#world'))return;
   const v=board().v,ox=e.clientX-v.x,oy=e.clientY-v.y;
   const mv=e=>{if(pinch.size>1)return;v.x=e.clientX-ox;v.y=e.clientY-oy;applyView()};
-  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);save()};
-  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);save()};
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
 };
 let docZoom=1;
 function zoomTo(z,cx,cy){
@@ -660,6 +668,8 @@ document.addEventListener('selectionchange',()=>{
 });
 function fmt(cmd,val){
   if(!range)return;
+  const host=(range.startContainer.nodeType==1?range.startContainer:range.startContainer.parentElement).closest('[contenteditable="true"]');
+  if(host&&document.activeElement!==host)host.focus({preventScroll:true});
   const s=getSelection();s.removeAllRanges();s.addRange(range);
   document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);growAll();save();
 }
@@ -882,8 +892,8 @@ $('#tog').onclick=()=>setSide(document.body.classList.contains('noside')?(side.o
 $('#grip').onpointerdown=e=>{
   e.preventDefault();
   const mv=e=>setSide(e.clientX<90?0:Math.min(520,Math.max(150,e.clientX)));
-  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};
-  addEventListener('pointermove',mv);addEventListener('pointerup',up);
+  const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up)};
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
 };
 const phone=()=>innerWidth<=760;
 try{const w=localStorage.getItem('whiteboard.side');if(w!==null)setSide(+w);else if(phone())setSide(0)}catch(e){}
