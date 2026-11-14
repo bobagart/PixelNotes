@@ -226,7 +226,10 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='30' shape-rendering='crispEdges'%3E%3Crect x='10' y='0' width='12' height='4' fill='%231f1d36'/%3E%3Crect x='6' y='2' width='4' height='16' fill='%231f1d36'/%3E%3Crect x='22' y='2' width='4' height='16' fill='%231f1d36'/%3E%3Crect x='10' y='18' width='12' height='8' fill='%235ec4b6'/%3E%3C/svg%3E") repeat-x left top/32px 30px}
 .leaf::after{content:counter(leaf);position:absolute;right:12px;bottom:2px;font:16px VT323,monospace;color:#8aa0b8;pointer-events:none}
 .leaf:focus{box-shadow:6px 6px 0 #ff6b9d}
-#page.diary>.leaf{margin:0 auto 40px} /* beats the side margin given to other document content */
+#page.diary>.leaf{margin:0 auto 40px}
+.leaf *{margin-top:0;margin-bottom:0;line-height:32px}
+.leaf ul,.leaf ol{padding-left:30px}
+.leaf h1,.leaf h2,.leaf h3,.leaf h4,.leaf h5,.leaf h6{font-size:inherit} /* beats the side margin given to other document content */
 @media print{#page.diary{background:#fff;padding:0}.leaf{break-after:page;box-shadow:none;margin:0 auto}}
 </style>
 </head>
@@ -311,7 +314,7 @@ function icon(n){let d='';PX[n].forEach((row,y)=>[...row].forEach((c,x)=>{if(c==
 const K=(id,x,y,w,h,html,bg)=>({id,x,y,w,h,html,bg});
 const TPL={
   blankdoc:{name:'Untitled document',mode:'doc',html:'<p><br></p>'},
-  diary:{name:'Diary',mode:'doc',diary:true,html:'<div class="leaf" contenteditable="true"><div><b>{date}</b></div><div>Dear diary,</div><div><br></div></div>'},
+  diary:{name:'Diary',mode:'doc',diary:true,html:'<div class="leaf" contenteditable="true"><div><b>{date}</b></div><div><br></div></div>'},
   cornell:{name:'Cornell notes',mode:'doc',html:'<table><tr><td colspan="2" style="background:#d3e6fb"><b>Topic:</b> &nbsp;&nbsp; <b>Date:</b></td></tr><tr><td style="width:30%;height:620px;background:#fff8d6"><b>Cues / Questions</b><br></td><td><b>Notes</b><br></td></tr><tr><td colspan="2" style="height:140px;background:#e3f6e6"><b>Summary</b><br></td></tr></table>'},
   outline:{name:'Outline notes',mode:'doc',html:'<h2>Topic:</h2><p><b>I. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p><p style="margin-left:48px">1. Detail</p><p style="margin-left:48px">2. Detail</p><p style="margin-left:24px">B. Subtopic</p><p style="margin-left:48px">1. Detail</p><p><b>II. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p><p style="margin-left:24px">B. Subtopic</p><p><b>III. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p>'},
   mapping:{name:'Mind map',links:[['m','a'],['m','b'],['m','c'],['m','d']],items:[
@@ -721,12 +724,20 @@ function delPage(i){
   save();f.pages.splice(i,1);if(i<f.pi||f.pi>=f.pages.length)f.pi--;load();save();
 }
 $('#addpage').innerHTML='<option value="">+ Add page…</option><option value="board">Whiteboard</option>'+$('#tpl').innerHTML.split('</option>').slice(1).join('</option>');
-$('#addpage').onchange=e=>{if(!e.target.value)return;save();const f=file();f.pages.push(mkPage(e.target.value));f.pi=f.pages.length-1;e.target.value='';load();save()};
+function addDiaryEntry(){ // a fresh notebook page at the end of this diary, starting with today's date
+  const date=new Date().toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  let l=leaves().pop();if(!l||!isEmptyLeaf(l))l=newLeaf(l);
+  l.innerHTML='<div class="pagestart"><b>'+X(date)+'</b></div><div><br></div>';
+  l.focus();const r=document.createRange();r.setStart(l.lastChild,0);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r);
+  l.scrollIntoView({block:'start'});save();
+}
+$('#addpage').onchange=e=>{if(!e.target.value)return;
+  if(e.target.value=='diary'&&board().diary){e.target.value='';addDiaryEntry();return}save();const f=file();f.pages.push(mkPage(e.target.value));f.pi=f.pages.length-1;e.target.value='';load();save()};
 // Diary: fixed-size notebook pages. Text that runs past the last line moves to the next page (a new page is added
 // and the caret follows it); deleting pulls text back up; Backspace at the top of a page goes back to the page before.
 const leaves=()=>[...$('#page').querySelectorAll(':scope>.leaf')];
 const overflowing=l=>l.scrollHeight>l.clientHeight+1;
-const isEmptyLeaf=l=>!l.textContent.replace(/\u200B/g,'').trim()&&!l.querySelector('img,table');
+const isEmptyLeaf=l=>!l.textContent.replace(/\u200B/g,'').trim()&&!l.querySelector('img,table,.pagestart');
 function newLeaf(after){const l=document.createElement('div');l.className='leaf';l.contentEditable='true';l.innerHTML='<div><br></div>';after?after.after(l):$('#page').append(l);return l}
 let caret=null;
 function moveOverflow(l,next,force){ // force: split the last paragraph instead of moving it whole
@@ -741,6 +752,11 @@ function moveOverflow(l,next,force){ // force: split the last paragraph instead 
     if(isBlock){box=last;tgt=next.firstChild&&next.firstChild.__from===last?next.firstChild:null;
       if(!tgt){tgt=document.createElement(last.tagName);tgt.__from=last;next.prepend(tgt)}}
     let t=box.lastChild;while(t&&t.nodeType==3&&!t.data){t.remove();t=box.lastChild}
+    while(t&&t.nodeType==1&&t.tagName!='BR'&&t.tagName!='IMG'&&t.tagName!='TABLE'&&t.textContent.replace(/\u200B/g,'').length>1){
+      let sh=tgt.firstChild&&tgt.firstChild.__from===t?tgt.firstChild:null; // same element continues on the next page
+      if(!sh){sh=t.cloneNode(false);sh.__from=t;tgt.prepend(sh)}
+      box=t;tgt=sh;t=box.lastChild;while(t&&t.nodeType==3&&!t.data){t.remove();t=box.lastChild}
+    }
     if(!t)break;
     if(t.nodeType==3){
       let k=fitOffset(l,t);const sp=t.data.lastIndexOf(' ',k-1);if(k<t.data.length&&sp>0)k=sp+1; // jump straight to the last word that fits
@@ -760,7 +776,8 @@ function fitOffset(l,t){ // how much of text node t still fits above the page's 
 function pullBack(l,next){
   while(next.firstChild&&!overflowing(l)){
     if(isEmptyLeaf(next)&&!(caret&&next.contains(caret.node)))break;
-    const n=next.firstChild;l.append(n);
+    const n=next.firstChild;if(n.nodeType==1&&n.classList.contains('pagestart'))break; // a new diary page stays on its own page
+    l.append(n);
     if(overflowing(l)){moveOverflow(l,next,true);break} // fill this page; the rest of that paragraph goes back
   }
 }
@@ -768,6 +785,7 @@ function reflowDiary(){
   const s=getSelection();
   caret=s.rangeCount&&$('#page').contains(s.anchorNode)?{node:s.anchorNode,off:s.anchorOffset}:null;
   let ls=leaves();if(!ls.length){newLeaf();ls=leaves()}
+  let made=0;
   for(let pass=0;pass<2;pass++) // second pass fills pages that the first pass left short
   for(let i=0;i<ls.length;i++){
     const l=ls[i];
@@ -777,7 +795,7 @@ function reflowDiary(){
       if(!overflowing(l)&&(!nx.firstChild||(isEmptyLeaf(nx)&&!(caret&&nx.contains(caret.node))))){nx.remove();ls=leaves();continue} // emptied: keep pulling from the page after
       break;
     }
-    if(overflowing(l)){moveOverflow(l,ls[i+1]||newLeaf(l));ls=leaves()}
+    if(overflowing(l)){let nx=ls[i+1];if(!nx||(nx.firstElementChild&&nx.firstElementChild.classList.contains('pagestart'))){if(++made>200)break;nx=newLeaf(l)}moveOverflow(l,nx);ls=leaves()}
   }
   // splitting can leave empty wrappers with no line break; they take no space but swallow Backspace presses
   leaves().forEach(l=>[...l.children].forEach(d=>{if(!d.childNodes.length){if(caret&&caret.node===d)d.innerHTML='<br>';else d.remove()}}));
