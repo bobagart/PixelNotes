@@ -187,16 +187,42 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
   #hint{display:none}
 }
 @media (pointer:coarse){#bar button,#bar select,#bar input,#files button,#tabs .tab,#addpage,#new,#tpl{min-height:40px}}
+
+#savebox{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:75;background:#1f1d3688}
+#savebox.on{display:flex}
+#savebox>div{background:var(--side);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:18px;display:flex;flex-direction:column;gap:12px;max-width:440px;text-align:center;color:var(--ink)}
+#savebox .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+#savebox button{border:2px solid var(--ink);background:#fff;color:var(--ink);box-shadow:2px 2px 0 var(--ink);padding:2px 12px;font-size:18px;cursor:pointer}
+@media print{
+  @page{margin:12mm}
+  html,body{display:block!important;height:auto!important;overflow:visible!important;background:#fff!important}
+  #side,#grip,#bar,#tabs,#hint,#menu,#marq,#aipbox,#exitbox,#bye,#savebox{display:none!important}
+  #main{display:block!important}
+  #docwrap{overflow:visible!important;height:auto!important;flex:none!important}
+  #page{min-height:0!important}
+  #view{overflow:visible!important;background:none!important}
+  .card{box-shadow:none!important;break-inside:avoid}
+  .card .h{visibility:hidden}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+#bar input[type=range]{width:84px;padding:0;border:0;box-shadow:none;background:transparent;accent-color:var(--acc)}
+#pprev{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid var(--ink);background:#fff;flex:none}
+#pprev i{display:block;border-radius:50%!important;background:#000}
+#bar,#bar>span{-webkit-user-select:none;user-select:none}
+#bar input,#bar textarea{-webkit-user-select:text;user-select:text} /* Safari cannot type into fields that are user-select:none */
+#bar input#name{border-bottom:2px solid var(--ink);padding:2px 6px}
+#bar input#name:focus{background:#fff;outline:none}
+@media (pointer:coarse){#bar input#name{min-height:44px;min-width:200px}}
 </style>
 </head>
 <body>
 <div id="side"><h1><img src="icons/logo.svg" width="28" height="28" alt=""> PixelNotes</h1><select id="tpl"><option value="">Whiteboard (blank)</option><option value="blankdoc">Document (blank)</option><option value="cornell">Cornell method (doc)</option><option value="outline">Outline method (doc)</option><option value="charting">Charting method (doc)</option><option value="mapping">Mapping method (whiteboard)</option></select><button id="new">+ New</button><div id="list"></div>
-  <div id="files"><button id="fopen" data-i="open" title="Add the boards from a saved file">Open</button><button id="fsave" data-i="save" title="Save to a file (Ctrl+S)">Save</button><button id="fsaveas" data-i="save" title="Save to a new file">Save As</button><button id="fexit" data-i="x" title="Close the app">Exit</button><input type="file" id="fopenin" accept=".json,application/json" hidden></div></div>
+  <div id="files"><button id="fsave" data-i="save" title="Save as Word or PDF (Ctrl+S)">Save</button><button id="fsaveas" data-i="save" title="Pick Word or PDF again">Save As</button><button id="fexit" data-i="x" title="Close the app">Exit</button></div></div>
 <div id="grip" title="Drag to resize, drag to the left edge to hide"></div>
 <div id="main">
   <div id="bar">
     <button id="tog" data-i="menu" title="Show/hide sidebar"></button>
-    <input id="name" placeholder="Untitled">
+    <input id="name" placeholder="Untitled" aria-label="File name" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
     <button id="add" class="cv" data-i="add">Card</button>
     <select id="shape" class="cv"><option value="">+ Shape</option><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option>
       <option value="diamond">Diamond</option><option value="triangle">Triangle</option></select>
@@ -207,8 +233,8 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
     <button id="hlpen" data-i="hl" title="Drag over text to highlight it">Highlighter</button>
     <button id="eraser" data-i="eraser" title="Drag over strokes to erase them">Eraser</button>
     <span id="pc"></span>
-    <select id="pw" title="Pen width"><option value="2">Thin</option><option value="4" selected>Medium</option><option value="8">Thick</option></select>
-    <button id="undo" data-i="undo">Undo stroke</button><button id="aip" data-i="spark" title="Turn this page into a text prompt for an AI image tool">AI prompt</button><span class="sep"></span>
+    <span id="pprev" title="Preview"><i></i></span><span style="color:var(--mut)">Size</span><input type="range" id="pw" min="1" max="40" value="4" title="Stroke size"><span style="color:var(--mut)">Opacity</span><input type="range" id="po" min="10" max="100" value="100" title="Stroke opacity">
+    <button id="undo" data-i="undo">Undo</button><button id="redo" data-i="redo">Redo</button><button id="aip" data-i="spark" title="Turn this page into a text prompt for an AI image tool">AI prompt</button><span class="sep"></span>
     <button data-c="bold"><b>B</b></button>
     <button data-c="italic"><em>I</em></button>
     <button data-c="underline"><u>U</u></button>
@@ -224,13 +250,15 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
     <span id="fg"></span><span class="sep"></span>
     <span class="cv" style="color:var(--mut)">Fill</span>
     <span id="bg" class="cv"></span><span class="sep cv"></span>
-    <button id="fit" class="cv" data-i="fit">Reset view</button>
+    <button id="fit" class="cv" data-i="fit">Reset view</button><span class="sep"></span><button id="zout" title="Zoom out">&minus;</button><button id="zval" title="Back to 100%">100%</button><button id="zin" title="Zoom in">+</button>
   </div>
   <div id="docwrap"><div id="sheet"><div id="page" class="t" contenteditable="true"></div><svg id="dsvg"><g id="dink"></g></svg></div></div>
   <div id="view"><div id="world"></div><div id="marq" hidden></div>
     <div id="hint">Double-click to add a card · drag background to pan · scroll to zoom · paste or drop images · double-click an arrow to delete it</div></div>
   <div id="tabs"><span id="tabl"></span><select id="addpage"></select></div>
 </div>
+<div id="savebox"><div><b>Save as</b><span>Choose a file type for this page.</span>
+  <div class="row"><button id="sdoc">Word (.doc)</button><button id="spdf">PDF</button><button id="scancel">Cancel</button></div></div></div>
 <div id="exitbox"><div><b>Unsaved changes</b><span>Do you want to save your changes before exiting?</span>
   <div class="row"><button id="xsave">Save</button><button id="xsaveas">Save As</button><button id="xdiscard">Don't save</button><button id="xcancel">Cancel</button></div></div></div>
 <div id="bye"><div><b>All done</b><span>You can close this tab now.</span><div class="row"><button id="byeback">Reopen</button></div></div></div>
@@ -262,6 +290,7 @@ const PX={
   save:['########','#.####.#','#.####.#','#......#','#.####.#','#.#..#.#','#.####.#','########'],
   x:['#......#','.#....#.','..#..#..','...##...','...##...','..#..#..','.#....#.','#......#']
 };
+PX.redo=PX.undo.map(r=>[...r].reverse().join(''));
 function icon(n){let d='';PX[n].forEach((row,y)=>[...row].forEach((c,x)=>{if(c=='#')d+='M'+x+' '+y+'h1v1h-1z'}));
   return '<svg class="pi" viewBox="0 0 8 8" width="16" height="16" shape-rendering="crispEdges" fill="currentColor"><path d="'+d+'"/></svg>'}
 const K=(id,x,y,w,h,html,bg)=>({id,x,y,w,h,html,bg});
@@ -319,7 +348,7 @@ function load(){
   $('#name').value=file().name;
   b.links=b.links||[];b.strokes=b.strokes||[];
   $('#world').innerHTML='<svg id="lines" style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0L10,5L0,10z" fill="#666"/></marker></defs></svg><svg style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;z-index:5"><g id="ink"></g></svg>';
-  renderList();renderTabs();
+  renderList();renderTabs();docZoom=1;$('#sheet').style.zoom='';redoStack.length=0;updZoom();
   if(b.mode=='doc'){$('#page').innerHTML=b.html||'';renderInk();return}
   b.items.forEach(addEl);applyView();draw();renderInk();
 }
@@ -445,7 +474,16 @@ function setPen(mode){
 function endPen(){pen&&setPen(null)}
 const toggle=m=>()=>setPen(pen&&pen.mode==m?null:m);
 $('#pen').onclick=toggle('draw');$('#eraser').onclick=toggle('erase');$('#hlpen').onclick=toggle('hl');
-$('#undo').onclick=()=>{board().strokes.pop();renderInk();save()};
+const redoStack=[];
+$('#undo').onclick=()=>{const s=board().strokes.pop();if(s)redoStack.push(s);renderInk();save()};
+$('#redo').onclick=()=>{const s=redoStack.pop();if(s)board().strokes.push(s);renderInk();save()};
+addEventListener('keydown',e=>{ // Ctrl/Cmd+Z and +Shift+Z (or Y) for strokes, but never while typing
+  const a=document.activeElement;if(!(e.ctrlKey||e.metaKey)||a.isContentEditable||/INPUT|SELECT|TEXTAREA/.test(a.tagName))return;
+  const k=e.key.toLowerCase();if(k=='z'&&!e.shiftKey){e.preventDefault();$('#undo').click()}else if(k=='y'||(k=='z'&&e.shiftKey)){e.preventDefault();$('#redo').click()}
+});
+// stroke size / opacity preview
+function updPen(){const i=$('#pprev i');i.style.width=i.style.height=Math.min(+$('#pw').value,24)+'px';i.style.background=penC;i.style.opacity=$('#po').value/100}
+$('#pw').oninput=$('#po').oninput=updPen;
 // highlighter: every text run the stroke passes over gets highlighted, the stroke itself is not kept
 function caretAt(x,y){let r;
   if(document.caretRangeFromPoint)r=document.caretRangeFromPoint(x,y);
@@ -470,14 +508,14 @@ function penDown(e){
   if(!pen)return;
   e.stopPropagation();e.preventDefault();
   const mode=pen.mode,doc=inDoc(),sr=doc&&$('#sheet').getBoundingClientRect();
-  const wp=e=>{const q=doc?{x:e.clientX-sr.left,y:e.clientY-sr.top}:place(e.clientX,e.clientY);return[Math.round(q.x*10)/10,Math.round(q.y*10)/10]};
-  const z=doc?1:board().v.z,list=board().strokes,g=$(doc?'#dink':'#ink'),raw=[[e.clientX,e.clientY]];let el,st;
-  const erase=e=>{const q=wp(e),r=10/z;
+  const wp=e=>{const q=doc?{x:(e.clientX-sr.left)/docZoom,y:(e.clientY-sr.top)/docZoom}:place(e.clientX,e.clientY);return[Math.round(q.x*10)/10,Math.round(q.y*10)/10]};
+  const z=doc?docZoom:board().v.z,list=board().strokes,g=$(doc?'#dink':'#ink'),raw=[[e.clientX,e.clientY]];let el,st;
+  const erase=e=>{const q=wp(e),r=Math.max(10,+$('#pw').value*1.5)/z;
     const keep=list.filter(s=>!s.p.some(a=>Math.hypot(a[0]-q[0],a[1]-q[1])<r+s.w/2));
     if(keep.length<list.length){list.splice(0,list.length,...keep);renderInk()}};
   if(mode=='erase')erase(e);
-  else{st={p:[wp(e)],c:mode=='hl'?hlC:penC,w:mode=='hl'?16/z:+$('#pw').value,o:mode=='hl'?.45:undefined};
-    if(mode=='draw')list.push(st);el=inkPath(st);g.append(el)}
+  else{st={p:[wp(e)],c:mode=='hl'?hlC:penC,w:mode=='hl'?16/z:+$('#pw').value,o:mode=='hl'?.45:(+$('#po').value<100?+$('#po').value/100:undefined)};
+    if(mode=='draw'){list.push(st);redoStack.length=0}el=inkPath(st);g.append(el)}
   const mv=e=>{if(!st)return erase(e);st.p.push(wp(e));raw.push([e.clientX,e.clientY]);el.setAttribute('d',pathD(st))};
   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);
     if(mode=='hl'&&st){el.remove();applyHL(raw)}save()};
@@ -486,7 +524,7 @@ function penDown(e){
 $('#view').addEventListener('pointerdown',penDown,true);
 $('#docwrap').addEventListener('pointerdown',penDown,true);
 // view: pan + zoom
-function applyView(){const v=board().v;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`}
+function applyView(){const v=board().v;updZoom();$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`}
 const view=$('#view');
 const pinch=new Map();let pinchD=0;
 view.addEventListener('pointerdown',e=>{if(e.pointerType=='touch'){pinch.set(e.pointerId,[e.clientX,e.clientY]);pinchD=0}},true);
@@ -507,6 +545,22 @@ view.onpointerdown=e=>{
   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);save()};
   addEventListener('pointermove',mv);addEventListener('pointerup',up);
 };
+let docZoom=1;
+function zoomTo(z,cx,cy){
+  const v=board().v,r=view.getBoundingClientRect(),mx=(cx==null?r.left+r.width/2:cx)-r.left,my=(cy==null?r.top+r.height/2:cy)-r.top;
+  z=Math.min(3,Math.max(.2,z));v.x=mx-(mx-v.x)*z/v.z;v.y=my-(my-v.y)*z/v.z;v.z=z;applyView();
+}
+function updZoom(){$('#zval').textContent=Math.round((inDoc()?docZoom:board().v.z)*100)+'%'}
+function zoomStep(f){
+  if(inDoc()){docZoom=Math.min(2.5,Math.max(.5,docZoom*f));$('#sheet').style.zoom=docZoom;updZoom()}
+  else{zoomTo(board().v.z*f);save()}
+}
+$('#zin').onclick=()=>zoomStep(1.25);$('#zout').onclick=()=>zoomStep(.8);
+$('#zval').onclick=()=>{if(inDoc()){docZoom=1;$('#sheet').style.zoom='';updZoom()}else{zoomTo(1);save()}};
+let gz0=1;
+view.addEventListener('gesturestart',e=>{e.preventDefault();gz0=board().v.z});
+view.addEventListener('gesturechange',e=>{e.preventDefault();zoomTo(gz0*e.scale,e.clientX,e.clientY)});
+view.addEventListener('gestureend',e=>{e.preventDefault();save()});
 view.onwheel=e=>{
   e.preventDefault();const v=board().v,r=view.getBoundingClientRect(),
     mx=e.clientX-r.left,my=e.clientY-r.top,z=Math.min(3,Math.max(.2,v.z*(e.deltaY<0?1.1:1/1.1)));
@@ -557,6 +611,7 @@ function fmt(cmd,val){
   const s=getSelection();s.removeAllRanges();s.addRange(range);
   document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);growAll();save();
 }
+$('#bar').addEventListener('pointerdown',e=>{if(e.pointerType=='pen'&&!e.target.closest('button,select,input,textarea,[contenteditable]'))e.preventDefault()},true);
 $('#bar').onmousedown=e=>{if(!/SELECT|INPUT/.test(e.target.tagName))e.preventDefault()};
 document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>fmt(b.dataset.c));
 $('#font').onchange=e=>{if(e.target.value)fmt('fontName',e.target.value);e.target.value=''};
@@ -574,7 +629,7 @@ function swatches(id,colors,fn){
     b.style.background=c||'linear-gradient(135deg,#fff 45%,#d33 45%,#d33 55%,#fff 55%)';
     b.onclick=()=>fn(c);$(id).append(b)});
 }
-swatches('#pc',['#000000','#d32f2f','#1976d2','#388e3c','#f57c00'],c=>{penC=c;if(!pen)setPen('draw')});
+swatches('#pc',['#000000','#d32f2f','#1976d2','#388e3c','#f57c00'],c=>{penC=c;updPen();if(!pen)setPen('draw')});
 swatches('#hl',['#fff176','#a5d6a7','#f8bbd0','#90caf9',''],c=>{if(c)hlC=c;fmt('hiliteColor',c||'transparent')});
 swatches('#fg',['#d32f2f','#1976d2','#388e3c','#f57c00',''],c=>fmt('foreColor',c||'#000000'));
 // fill colour applies to the card or shape holding the caret
@@ -584,6 +639,7 @@ swatches('#bg',['#fffdf5','#fff3b0','#d7f5dc','#fbd5e0','#d3e6fb'],c=>{
 });
 
 $('#new').onclick=()=>{save();newBoard($('#tpl').value);$('#tpl').value='';load();save();$('#name').focus();$('#name').select()};
+$('#name').onkeydown=e=>{if(e.key=='Enter')e.target.blur()};
 $('#name').oninput=e=>{file().name=e.target.value;renderList();save()};
 // pages: tabs along the bottom, each page is its own whiteboard or note-taking method
 function renderTabs(){
@@ -717,29 +773,57 @@ $('#aipcopy').onclick=async()=>{const t=$('#aiptxt');
 // "Leave site?" box when a tab is closed, so the Save / Don't save choice appears when you use Exit.
 const isDirty=()=>JSON.stringify(S)!==snapshot;
 function refreshDirty(){document.title=(isDirty()?'● ':'')+'PixelNotes'}
-async function saveFile(as){
-  save();
-  const data=JSON.stringify({app:'pixelnotes',v:1,S});
+let lastFmt=null;
+const esc=t=>{const d=document.createElement('div');d.textContent=t;return d.innerHTML};
+const textOf=h=>{const d=document.createElement('div');d.innerHTML=(h||'').replace(/<([/](td|th|p|div|h[1-6]|li|tr)|br)[^>]*>/g,' $&');return d.textContent.replace(/\s+/g,' ').trim()};
+// Word keeps text, tables, colours and pictures. On a whiteboard it lists the cards in reading order, then the arrows.
+function pageBody(){
+  const b=board();
+  if(b.mode=='doc')return $('#page').innerHTML;
+  const items=[...b.items].sort((a,c)=>a.y-c.y||a.x-c.x),label={};
+  items.forEach(i=>{label[i.id]=textOf(i.html)||(i.type=='img'?'Picture':i.type=='shape'?SHAPE_NAME[i.shape]:'Card')});
+  return items.map(i=>i.type=='img'?'<p><img src="'+i.src+'" width="'+Math.min(i.w,400)+'"></p>':'<div style="border:1px solid #999;padding:6px;margin:6px 0">'+(i.html||'<i>(empty)</i>')+'</div>').join('')+
+    (b.links.length?'<h3>Connections</h3><ul>'+b.links.filter(l=>label[l[0]]&&label[l[1]]).map(l=>'<li>'+esc(label[l[0]])+' &rarr; '+esc(label[l[1]])+'</li>').join('')+'</ul>':'');
+}
+async function exportDoc(){
+  const name=(file().name||'notes').replace(/[\\/:*?"<>|]+/g,'-');
+  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>'+esc(name)+'</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:6px;vertical-align:top}img{max-width:100%}</style></head><body><h1>'+esc(file().name||'Notes')+'</h1>'+pageBody()+'</body></html>';
+  const blob=new Blob(['\ufeff',html],{type:'application/msword'});
   try{
     if(window.showSaveFilePicker){
-      if(as||!handle)handle=await showSaveFilePicker({suggestedName:(file().name||'notes')+'.json',types:[{description:'PixelNotes file',accept:{'application/json':['.json']}}]});
-      const w=await handle.createWritable();await w.write(data);await w.close();
-    }else{
-      const n=as?prompt('File name',file().name||'notes'):(file().name||'notes');if(!n)return false;
-      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=n+'.json';a.click();URL.revokeObjectURL(a.href);
-    }
+      const h=await showSaveFilePicker({suggestedName:name+'.doc',types:[{description:'Word document',accept:{'application/msword':['.doc']}}]});
+      const w=await h.createWritable();await w.write(blob);await w.close();
+    }else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
   }catch(e){if(e&&e.name!='AbortError')alert('Could not save the file: '+e.message);return false}
-  snapshot=JSON.stringify(S);refreshDirty();return true;
+  return true;
+}
+// PDF uses the browser's print dialog (choose "Save as PDF"). A whiteboard is scaled to fit the page width first.
+function exportPdf(){return new Promise(res=>{
+  const b=board(),w=$('#world'),v=$('#view'),old=[w.style.transform,v.style.height,v.style.flex],sz=$('#sheet').style.zoom;$('#sheet').style.zoom='';
+  if(b.mode!='doc'){
+    const pts=[];b.items.forEach(i=>{pts.push([i.x,i.y],[i.x+i.w,i.y+i.h])});b.strokes.forEach(st=>st.p.forEach(q=>pts.push(q)));
+    if(pts.length){const xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),x0=Math.min(...xs)-20,x1=Math.max(...xs)+20,y0=Math.min(...ys)-20,y1=Math.max(...ys)+20,k=Math.min(1,700/(x1-x0));
+      w.style.transform='scale('+k+') translate('+(-x0)+'px,'+(-y0)+'px)';v.style.height=(y1-y0)*k+'px';v.style.flex='none'}
+  }
+  const done=()=>{removeEventListener('afterprint',done);w.style.transform=old[0];v.style.height=old[1];v.style.flex=old[2];$('#sheet').style.zoom=sz;res(true)};
+  addEventListener('afterprint',done);
+  setTimeout(()=>print(),50);
+})}
+function pickFormat(){return new Promise(res=>{
+  const box=$('#savebox'),done=f=>{box.classList.remove('on');res(f)};
+  box.classList.add('on');
+  $('#sdoc').onclick=()=>done('doc');$('#spdf').onclick=()=>done('pdf');$('#scancel').onclick=()=>done(null);
+})}
+// Save repeats the last file type; Save As asks again. Either way the app counts the work as saved afterwards.
+async function saveFile(as){
+  save();
+  const fmt=(!as&&lastFmt)||await pickFormat();if(!fmt)return false;
+  const ok=fmt=='doc'?await exportDoc():await exportPdf();
+  if(ok){lastFmt=fmt;snapshot=JSON.stringify(S);refreshDirty()}
+  return ok;
 }
 $('#fsave').onclick=()=>saveFile(false);$('#fsaveas').onclick=()=>saveFile(true);
 addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()=='s'){e.preventDefault();saveFile(false)}});
-$('#fopen').onclick=()=>$('#fopenin').click();
-$('#fopenin').onchange=async e=>{
-  const f=e.target.files[0];e.target.value='';if(!f)return;
-  try{const d=JSON.parse(await f.text()),add=(d.S.boards||[]).filter(b=>Array.isArray(b.pages));if(!add.length)throw 0;
-    save();add.forEach(b=>S.boards.push(b));S.cur=S.boards.length-add.length;load();save()}
-  catch(err){alert('That is not a whiteboard file.')}
-};
 function bye(){leaving=true;window.close();$('#bye').classList.add('on')}
 $('#fexit').onclick=()=>{save();isDirty()?$('#exitbox').classList.add('on'):bye()};
 const closeBox=()=>$('#exitbox').classList.remove('on');
@@ -750,6 +834,7 @@ $('#xcancel').onclick=closeBox;
 $('#byeback').onclick=()=>location.reload();
 addEventListener('beforeunload',e=>{if(leaving)return;save();if(isDirty()){e.preventDefault();e.returnValue=''}});
 document.querySelectorAll('[data-i]').forEach(b=>b.insertAdjacentHTML('afterbegin',icon(b.dataset.i)));
+updPen();
 // installable web app: works offline after the first visit (needs http/https, not file://)
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 load();

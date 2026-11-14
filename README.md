@@ -15,9 +15,11 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 - **Note-taking pages**: Cornell, Outline and Charting layouts that fill the whole page, plus a blank document.
 - **Several pages per file**, each its own whiteboard or note-taking method.
 - **Highlighter**: drag over text to highlight it.
+- **Drawing controls**: stroke size, opacity, undo and redo.
+- **Zoom** with the +/- buttons, a trackpad or two fingers (including Safari on iPhone, iPad and Mac).
 - **Pixel fonts and pixel icons** throughout.
 - **AI prompt**: turns a page into a text prompt for an AI image tool (built locally, nothing is sent anywhere).
-- **Save, Save As and Open** files as `.json`, with an unsaved-changes prompt on Exit.
+- **Save and Save As** to a Word document (`.doc`) or a PDF, with an unsaved-changes prompt on Exit.
 - **Works offline** once installed.
 - **Phone friendly**: the toolbar scrolls sideways, the file list slides in over the canvas, and two fingers pinch to zoom the whiteboard.
 
@@ -47,7 +49,7 @@ Then open http://localhost:8000. The install and offline features need `http://`
 
 ## Your data
 
-Notes live in your browser's local storage. Use **Save** to write a file you can keep or move, and **Open** to load it back. Fonts are loaded from Google Fonts; offline, the app falls back to a plain monospace font.
+Notes live in your browser's local storage, so they stay on your device. **Save** exports the current page as a Word document or a PDF to keep or share. Word keeps text, tables, colours and pictures; on a whiteboard it lists the cards and arrows as text. PDF uses your browser's print dialog (choose **Save as PDF**) and keeps the whiteboard's look, including drawings. Exports can't be loaded back into the app. Fonts are loaded from Google Fonts; offline, the app falls back to a plain monospace font.
 
 ## Roadmap
 
