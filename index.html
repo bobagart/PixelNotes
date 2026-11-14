@@ -217,7 +217,7 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
 </head>
 <body>
 <div id="side"><h1><img src="icons/logo.svg" width="28" height="28" alt=""> PixelNotes</h1><select id="tpl"><option value="">Whiteboard (blank)</option><option value="blankdoc">Document (blank)</option><option value="cornell">Cornell method (doc)</option><option value="outline">Outline method (doc)</option><option value="charting">Charting method (doc)</option><option value="mapping">Mapping method (whiteboard)</option></select><button id="new">+ New</button><div id="list"></div>
-  <div id="files"><button id="fsave" data-i="save" title="Save as Word or PDF (Ctrl+S)">Save</button><button id="fsaveas" data-i="save" title="Pick Word or PDF again">Save As</button><button id="fexit" data-i="x" title="Close the app">Exit</button></div></div>
+  <div id="files"><button id="fopen" data-i="open" title="Open a PixelNotes file">Open</button><input type="file" id="fopenin" accept=".pixelnotes,.json,application/json" hidden><button id="fsave" data-i="save" title="Save as Word, PDF, PNG or a PixelNotes file (Ctrl+S)">Save</button><button id="fsaveas" data-i="save" title="Pick the file type again">Save As</button><button id="fexit" data-i="x" title="Close the app">Exit</button></div></div>
 <div id="grip" title="Drag to resize, drag to the left edge to hide"></div>
 <div id="main">
   <div id="bar">
@@ -258,7 +258,7 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
   <div id="tabs"><span id="tabl"></span><select id="addpage"></select></div>
 </div>
 <div id="savebox"><div><b>Save as</b><span>Choose a file type for this page.</span>
-  <div class="row"><button id="sdoc">Word (.doc)</button><button id="spdf">PDF</button><button id="scancel">Cancel</button></div></div></div>
+  <div class="row"><button id="sdoc">Word (.docx)</button><button id="spdf">PDF</button><button id="spng">PNG image</button><button id="sbak">PixelNotes file</button><button id="scancel">Cancel</button></div><small>PixelNotes file keeps the whole file so you can open it again. PNG is for whiteboard pages.</small></div></div>
 <div id="exitbox"><div><b>Unsaved changes</b><span>Do you want to save your changes before exiting?</span>
   <div class="row"><button id="xsave">Save</button><button id="xsaveas">Save As</button><button id="xdiscard">Don't save</button><button id="xcancel">Cancel</button></div></div></div>
 <div id="bye"><div><b>All done</b><span>You can close this tab now.</span><div class="row"><button id="byeback">Reopen</button></div></div></div>
@@ -775,28 +775,210 @@ $('#aipcopy').onclick=async()=>{const t=$('#aiptxt');
 const isDirty=()=>JSON.stringify(S)!==snapshot;
 function refreshDirty(){document.title=(isDirty()?'● ':'')+'PixelNotes'}
 let lastFmt=null;
-const esc=t=>{const d=document.createElement('div');d.textContent=t;return d.innerHTML};
-const textOf=h=>{const d=document.createElement('div');d.innerHTML=(h||'').replace(/<([/](td|th|p|div|h[1-6]|li|tr)|br)[^>]*>/g,' $&');return d.textContent.replace(/\s+/g,' ').trim()};
-// Word keeps text, tables, colours and pictures. On a whiteboard it lists the cards in reading order, then the arrows.
-function pageBody(){
-  const b=board();
-  if(b.mode=='doc')return $('#page').innerHTML;
-  const items=[...b.items].sort((a,c)=>a.y-c.y||a.x-c.x),label={};
-  items.forEach(i=>{label[i.id]=textOf(i.html)||(i.type=='img'?'Picture':i.type=='shape'?SHAPE_NAME[i.shape]:'Card')});
-  return items.map(i=>i.type=='img'?'<p><img src="'+i.src+'" width="'+Math.min(i.w,400)+'"></p>':'<div style="border:1px solid #999;padding:6px;margin:6px 0">'+(i.html||'<i>(empty)</i>')+'</div>').join('')+
-    (b.links.length?'<h3>Connections</h3><ul>'+b.links.filter(l=>label[l[0]]&&label[l[1]]).map(l=>'<li>'+esc(label[l[0]])+' &rarr; '+esc(label[l[1]])+'</li>').join('')+'</ul>':'');
-}
-async function exportDoc(){
-  const name=(file().name||'notes').replace(/[\\/:*?"<>|]+/g,'-');
-  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>'+esc(name)+'</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:6px;vertical-align:top}img{max-width:100%}</style></head><body><h1>'+esc(file().name||'Notes')+'</h1>'+pageBody()+'</body></html>';
-  const blob=new Blob(['\ufeff',html],{type:'application/msword'});
+const X=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fname=()=>(file().name||'notes').replace(/[\\/:*?"<>|]+/g,'-');
+async function saveBlob(blob,filename,types){
   try{
     if(window.showSaveFilePicker){
-      const h=await showSaveFilePicker({suggestedName:name+'.doc',types:[{description:'Word document',accept:{'application/msword':['.doc']}}]});
+      const h=await showSaveFilePicker({suggestedName:filename,types});
       const w=await h.createWritable();await w.write(blob);await w.close();
-    }else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name+'.doc';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+    }else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
   }catch(e){if(e&&e.name!='AbortError')alert('Could not save the file: '+e.message);return false}
   return true;
+}
+
+// ---- tiny ZIP writer (no compression) for .docx
+const CRC=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t.push(c>>>0)}return t})();
+const crc32=u=>{let c=-1;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^-1)>>>0};
+function zip(files,type){
+  const enc=new TextEncoder(),parts=[],cent=[];let off=0;
+  files.forEach(([name,data])=>{
+    if(typeof data=='string')data=enc.encode(data);
+    const nb=enc.encode(name),crc=crc32(data),h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);
+    h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,nb.length,true);
+    parts.push(new Uint8Array(h.buffer),nb,data);
+    const c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);
+    c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,nb.length,true);c.setUint32(42,off,true);
+    cent.push(new Uint8Array(c.buffer),nb);off+=30+nb.length+data.length});
+  const csz=cent.reduce((a,x)=>a+x.length,0),e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,csz,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cent,new Uint8Array(e.buffer)],{type});
+}
+
+// ---- page HTML -> Word (WordprocessingML)
+const media=[];
+const BLOCK=/^(P|DIV|H[1-6]|UL|OL|LI|TABLE|TR|TD|TH|TBODY|THEAD|TFOOT|BLOCKQUOTE|PRE)$/;
+const hex2=c=>{const m=/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(c||'');
+  if(m){if(m[4]!==undefined&&+m[4]===0)return '';return [m[1],m[2],m[3]].map(v=>(+v).toString(16).padStart(2,'0')).join('').toUpperCase()}
+  const h=/^#([0-9a-f]{6})$/i.exec(c||'');return h?h[1].toUpperCase():''};
+function rPr(st){let x='';
+  if(st.font)x+='<w:rFonts w:ascii="'+X(st.font)+'" w:hAnsi="'+X(st.font)+'"/>';
+  if(st.b)x+='<w:b/>';if(st.i)x+='<w:i/>';if(st.s)x+='<w:strike/>';
+  if(st.color)x+='<w:color w:val="'+st.color+'"/>';
+  if(st.sz)x+='<w:sz w:val="'+st.sz+'"/>';
+  if(st.u)x+='<w:u w:val="single"/>';
+  if(st.bg)x+='<w:shd w:val="clear" w:color="auto" w:fill="'+st.bg+'"/>';
+  return x?'<w:rPr>'+x+'</w:rPr>':'';
+}
+function styleOf(el,st){
+  const n={...st},t=el.tagName,sx=el.style||{};
+  if(/^(B|STRONG|TH)$/.test(t))n.b=1;if(/^(I|EM)$/.test(t))n.i=1;if(t=='U')n.u=1;if(/^(S|STRIKE|DEL)$/.test(t))n.s=1;
+  if(/^H[1-6]$/.test(t)){n.b=1;n.sz=[0,48,40,34,30,26,24][+t[1]]}
+  if(sx.fontWeight&&(sx.fontWeight=='bold'||+sx.fontWeight>=600))n.b=1;
+  if(sx.fontStyle=='italic')n.i=1;
+  const td=sx.textDecorationLine||sx.textDecoration||'';if(/underline/.test(td))n.u=1;if(/line-through/.test(td))n.s=1;
+  const c=hex2(sx.color);if(c)n.color=c;
+  const bg=hex2(sx.backgroundColor);if(bg&&!/^(TD|TH)$/.test(t))n.bg=bg;
+  if(/px$/.test(sx.fontSize||''))n.sz=Math.max(2,Math.round(parseFloat(sx.fontSize)*1.5));
+  if(sx.fontFamily)n.font=sx.fontFamily.split(',')[0].replace(/["']/g,'').trim();
+  return n;
+}
+function drawing(ext,bytes,w,h){
+  const id=media.length+1;media.push({id,ext,bytes});
+  const cx=Math.round(w*9525),cy=Math.round(h*9525);
+  return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'+cx+'" cy="'+cy+'"/><wp:docPr id="'+id+'" name="Picture '+id+'"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="'+id+'" name="image'+id+'"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg'+id+'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+function imgRun(img){
+  const m=/^data:image\/(png|jpe?g);base64,(.+)$/.exec(img.getAttribute('src')||'');if(!m)return '';
+  const bytes=Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0)),nw=img.naturalWidth,nh=img.naturalHeight;
+  let w=parseFloat(img.getAttribute('width'))||(/px$/.test(img.style.width||'')?parseFloat(img.style.width):0)||nw||200;
+  let h=nw?w*nh/nw:w*.75;if(w>600){h*=600/w;w=600}
+  return drawing(m[1]=='png'?'png':'jpeg',bytes,w,h);
+}
+function inlineRuns(nodes,st){let x='';
+  nodes.forEach(n=>{
+    if(n.nodeType==3){const t=n.textContent.replace(/\s+/g,' ');if(t)x+='<w:r>'+rPr(st)+'<w:t xml:space="preserve">'+X(t)+'</w:t></w:r>'}
+    else if(n.nodeType==1){const T=n.tagName;
+      if(T=='BR')x+='<w:r><w:br/></w:r>';
+      else if(T=='IMG')x+=imgRun(n);
+      else if(!BLOCK.test(T))x+=inlineRuns(n.childNodes,styleOf(n,st))}});
+  return x;
+}
+function para(runs,el,extra){
+  const sx=(el&&el.style)||{},ind=parseFloat(sx.marginLeft)?'<w:ind w:left="'+Math.round(parseFloat(sx.marginLeft)*15)+'"/>':'',
+    al=/^(center|right)$/.test(sx.textAlign||'')?'<w:jc w:val="'+sx.textAlign+'"/>':'';
+  return '<w:p><w:pPr>'+(extra||'')+ind+al+'</w:pPr>'+runs+'</w:p>';
+}
+function blocks(parent,st){let x='',buf=[];
+  const flush=()=>{if(buf.some(n=>n.nodeType==1||n.textContent.trim()))x+=para(inlineRuns(buf,st)||'<w:r/>',parent);buf=[]};
+  parent.childNodes.forEach(n=>{if(n.nodeType==1&&BLOCK.test(n.tagName)){flush();x+=block(n,styleOf(n,st))}else buf.push(n)});
+  flush();return x;
+}
+function block(el,st){
+  const T=el.tagName;
+  if(T=='TABLE')return table(el,st);
+  if(T=='UL'||T=='OL')return [...el.children].map((li,i)=>para('<w:r><w:t xml:space="preserve">'+(T=='UL'?'\u2022 ':(i+1)+'. ')+'</w:t></w:r>'+inlineRuns(li.childNodes,styleOf(li,st)),null,'<w:ind w:left="360"/>')).join('');
+  if([...el.children].some(c=>BLOCK.test(c.tagName)))return blocks(el,st);
+  return para(inlineRuns(el.childNodes,st)||'<w:r/>',el);
+}
+function table(t,st){
+  const rows=[...t.rows];if(!rows.length)return '';
+  const cols=Math.max(...rows.map(r=>[...r.cells].reduce((a,c)=>a+(c.colSpan||1),0))),W=9800,widths=Array(cols).fill(W/cols),set=new Set();
+  rows.forEach(r=>{let ci=0;[...r.cells].forEach(c=>{const m=/^([\d.]+)%$/.exec(c.style.width||'');if(m&&(c.colSpan||1)==1&&!set.has(ci)){widths[ci]=W*m[1]/100;set.add(ci)}ci+=c.colSpan||1})});
+  let x='<w:tbl><w:tblPr><w:tblW w:w="'+W+'" w:type="dxa"/><w:tblBorders>'+['top','left','bottom','right','insideH','insideV'].map(b=>'<w:'+b+' w:val="single" w:sz="6" w:space="0" w:color="444444"/>').join('')+'</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>'+widths.map(w=>'<w:gridCol w:w="'+Math.round(w)+'"/>').join('')+'</w:tblGrid>';
+  rows.forEach(r=>{
+    const rh=Math.max(0,...[...r.cells].map(c=>parseFloat(c.style.height)||0));
+    x+='<w:tr>'+(rh?'<w:trPr><w:trHeight w:val="'+Math.round(rh*15)+'" w:hRule="atLeast"/></w:trPr>':'');
+    let ci=0;
+    [...r.cells].forEach(c=>{const sp=c.colSpan||1,w=widths.slice(ci,ci+sp).reduce((a,b)=>a+b,0),bg=hex2(c.style.backgroundColor);ci+=sp;
+      x+='<w:tc><w:tcPr><w:tcW w:w="'+Math.round(w)+'" w:type="dxa"/>'+(sp>1?'<w:gridSpan w:val="'+sp+'"/>':'')+(bg?'<w:shd w:val="clear" w:color="auto" w:fill="'+bg+'"/>':'')+'</w:tcPr>'+(blocks(c,styleOf(c,st))||'<w:p/>')+'</w:tc>'});
+    x+='</w:tr>'});
+  return x+'</w:tbl><w:p/>';
+}
+
+// ---- whiteboard -> canvas (used by PNG and Word)
+const htmlLines=h=>{const d=document.createElement('div');d.innerHTML=(h||'').replace(/<([/](div|p|h[1-6]|li|tr)|br)[^>]*>/g,'$&\n');return d.textContent.replace(/\n{2,}/g,'\n').trim()};
+function wrapText(ctx,text,maxW){const out=[];text.split('\n').forEach(line=>{let cur='';line.split(' ').forEach(w=>{const t=cur?cur+' '+w:w;if(ctx.measureText(t).width>maxW&&cur){out.push(cur);cur=w}else cur=t});out.push(cur)});return out}
+async function renderBoardCanvas(){
+  try{await document.fonts.load('20px VT323')}catch(e){}
+  const b=board(),pts=[];
+  b.items.forEach(i=>pts.push([i.x,i.y],[i.x+i.w+6,i.y+i.h+6]));b.strokes.forEach(st=>st.p.forEach(q=>pts.push(q)));
+  if(!pts.length)return null;
+  const pad=28,xs=pts.map(q=>q[0]),ys=pts.map(q=>q[1]),x0=Math.min(...xs)-pad,y0=Math.min(...ys)-pad,W=Math.max(...xs)+pad-x0,H=Math.max(...ys)+pad-y0,k=Math.min(2,3600/Math.max(W,H));
+  const cv=document.createElement('canvas');cv.width=Math.round(W*k);cv.height=Math.round(H*k);
+  const c=cv.getContext('2d');c.scale(k,k);c.translate(-x0,-y0);
+  c.fillStyle='#fffdf5';c.fillRect(x0,y0,W,H);
+  const imgs={};
+  await Promise.all(b.items.filter(i=>i.type=='img'&&i.src).map(i=>new Promise(r=>{const im=new Image();im.onload=()=>{imgs[i.id]=im;r()};im.onerror=r;im.src=i.src})));
+  const INK='#1f1d36',FONT='20px VT323,"Courier New",monospace';
+  b.items.forEach(i=>{
+    const t=i.type||'card',x=i.x,y=i.y,w=i.w,h=i.h;
+    c.lineWidth=3;c.strokeStyle=INK;
+    if(t=='shape'){
+      c.fillStyle=i.fill||'#d3e6fb';c.beginPath();
+      if(i.shape=='ellipse')c.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,7);
+      else if(i.shape=='diamond'){c.moveTo(x+w/2,y);c.lineTo(x+w,y+h/2);c.lineTo(x+w/2,y+h);c.lineTo(x,y+h/2);c.closePath()}
+      else if(i.shape=='triangle'){c.moveTo(x+w/2,y);c.lineTo(x+w,y+h);c.lineTo(x,y+h);c.closePath()}
+      else c.rect(x,y,w,h);
+      c.fill();c.stroke();
+    }else if(t=='img'){
+      c.fillStyle='#fff';c.fillRect(x,y,w,h);c.strokeRect(x,y,w,h);
+      const im=imgs[i.id];if(im){const sc=Math.min((w-8)/im.width,(h-8)/im.height);c.drawImage(im,x+(w-im.width*sc)/2,y+(h-im.height*sc)/2,im.width*sc,im.height*sc)}
+    }else{
+      c.fillStyle=INK;c.fillRect(x+5,y+5,w,h);c.fillStyle=i.bg||'#fff';c.fillRect(x,y,w,h);c.strokeRect(x,y,w,h);
+    }
+    if(t!='img'){
+      c.save();c.beginPath();c.rect(x,y,w,h);c.clip();
+      c.fillStyle='#000';c.font=FONT;c.textBaseline='top';
+      const inset=t=='shape'?(i.shape=='rect'?.1:i.shape=='ellipse'?.16:.25):0,pd=8,lines=wrapText(c,htmlLines(i.html),w-2*pd-2*w*inset),lh=22;
+      c.textAlign=t=='shape'?'center':'left';
+      const ty=t=='shape'?y+(h-lines.length*lh)/2:y+pd;
+      lines.forEach((ln,j)=>c.fillText(ln,t=='shape'?x+w/2:x+pd,ty+j*lh));
+      c.restore();
+    }
+  });
+  const byId=Object.fromEntries(b.items.map(i=>[i.id,i]));
+  const edge=(A,B)=>{const ax=A.x+A.w/2,ay=A.y+A.h/2,dx=B.x+B.w/2-ax,dy=B.y+B.h/2-ay,tt=Math.min((A.w/2)/(Math.abs(dx)||1e-9),(A.h/2)/(Math.abs(dy)||1e-9),1);return[ax+dx*tt,ay+dy*tt]};
+  c.strokeStyle='#666';c.fillStyle='#666';c.lineWidth=2;
+  b.links.forEach(([a,d])=>{const A=byId[a],B=byId[d];if(!A||!B)return;
+    const p=edge(A,B),q=edge(B,A),ang=Math.atan2(q[1]-p[1],q[0]-p[0]);
+    c.beginPath();c.moveTo(p[0],p[1]);c.lineTo(q[0],q[1]);c.stroke();
+    c.beginPath();c.moveTo(q[0],q[1]);c.lineTo(q[0]-10*Math.cos(ang-.4),q[1]-10*Math.sin(ang-.4));c.lineTo(q[0]-10*Math.cos(ang+.4),q[1]-10*Math.sin(ang+.4));c.closePath();c.fill()});
+  b.strokes.forEach(st=>{c.globalAlpha=st.o||1;c.strokeStyle=st.c;c.lineWidth=st.w;c.lineCap='round';c.lineJoin='round';c.beginPath();
+    st.p.forEach((q,j)=>j?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));if(st.p.length==1)c.lineTo(st.p[0][0]+.1,st.p[0][1]);c.stroke();c.globalAlpha=1});
+  return cv;
+}
+const canvasBlob=cv=>new Promise(r=>cv.toBlob(r,'image/png'));
+
+// ---- the four save formats
+async function exportDocx(){
+  media.length=0;
+  const b=board();
+  let body=para('<w:r><w:rPr><w:b/><w:sz w:val="40"/></w:rPr><w:t xml:space="preserve">'+X(file().name||'Notes')+'</w:t></w:r>',null);
+  if(b.mode=='doc'){
+    const box=document.createElement('div');box.innerHTML=$('#page').innerHTML;
+    await Promise.all([...box.querySelectorAll('img')].map(im=>im.complete?0:new Promise(r=>{im.onload=im.onerror=r})));
+    body+=blocks(box,{});
+  }else{
+    const cv=await renderBoardCanvas();
+    if(cv){const bytes=new Uint8Array(await (await canvasBlob(cv)).arrayBuffer()),w=Math.min(620,cv.width),h=cv.height*w/cv.width;body+=para(drawing('png',bytes,w,h),null)}
+    const items=[...b.items].sort((a,c)=>a.y-c.y||a.x-c.x),label={};
+    items.forEach(i=>{label[i.id]=htmlLines(i.html).replace(/\n+/g,' ')||(i.type=='img'?'Picture':i.type=='shape'?SHAPE_NAME[i.shape]:'Card')});
+    items.filter(i=>i.type!='img'&&htmlLines(i.html)).forEach(i=>{body+=para('<w:r><w:t xml:space="preserve">'+X(htmlLines(i.html).replace(/\n+/g,' / '))+'</w:t></w:r>',null)});
+    const links=b.links.filter(l=>label[l[0]]&&label[l[1]]);
+    if(links.length){body+=para('<w:r><w:rPr><w:b/></w:rPr><w:t>Connections</w:t></w:r>',null);
+      links.forEach(l=>{body+=para('<w:r><w:t xml:space="preserve">'+X('\u2022 '+label[l[0]]+' \u2192 '+label[l[1]])+'</w:t></w:r>',null)})}
+  }
+  const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+  const HEAD='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const files=[
+    ['[Content_Types].xml',HEAD+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+    ['_rels/.rels',HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+    ['word/document.xml',HEAD+'<w:document '+NS+'><w:body>'+body+'<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1000" w:right="1000" w:bottom="1000" w:left="1000" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>'],
+    ['word/_rels/document.xml.rels',HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+media.map(m=>'<Relationship Id="rIdImg'+m.id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image'+m.id+'.'+m.ext+'"/>').join('')+'</Relationships>'],
+    ...media.map(m=>['word/media/image'+m.id+'.'+m.ext,m.bytes])
+  ];
+  return saveBlob(zip(files,'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),fname()+'.docx',[{description:'Word document',accept:{'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx']}}]);
+}
+async function exportPng(){
+  if(board().mode=='doc'){alert('PNG works on whiteboard pages. For this page, choose PDF or Word.');return false}
+  const cv=await renderBoardCanvas();if(!cv){alert('This page is empty.');return false}
+  return saveBlob(await canvasBlob(cv),fname()+'.png',[{description:'PNG image',accept:{'image/png':['.png']}}]);
+}
+function exportBackup(){
+  return saveBlob(new Blob([JSON.stringify({app:'pixelnotes',v:2,file:file()})],{type:'application/json'}),fname()+'.pixelnotes',[{description:'PixelNotes file',accept:{'application/json':['.pixelnotes']}}]);
 }
 // PDF uses the browser's print dialog (choose "Save as PDF"). A whiteboard is scaled to fit the page width first.
 function exportPdf(){return new Promise(res=>{
@@ -813,16 +995,49 @@ function exportPdf(){return new Promise(res=>{
 function pickFormat(){return new Promise(res=>{
   const box=$('#savebox'),done=f=>{box.classList.remove('on');res(f)};
   box.classList.add('on');
-  $('#sdoc').onclick=()=>done('doc');$('#spdf').onclick=()=>done('pdf');$('#scancel').onclick=()=>done(null);
+  [['sdoc','docx'],['spdf','pdf'],['spng','png'],['sbak','bak']].forEach(([id,f])=>$('#'+id).onclick=()=>done(f));
+  $('#scancel').onclick=()=>done(null);
 })}
 // Save repeats the last file type; Save As asks again. Either way the app counts the work as saved afterwards.
 async function saveFile(as){
   save();
   const fmt=(!as&&lastFmt)||await pickFormat();if(!fmt)return false;
-  const ok=fmt=='doc'?await exportDoc():await exportPdf();
+  const ok=fmt=='docx'?await exportDocx():fmt=='pdf'?await exportPdf():fmt=='png'?await exportPng():await exportBackup();
   if(ok){lastFmt=fmt;snapshot=JSON.stringify(S);refreshDirty()}
   return ok;
 }
+
+// ---- Open: files from outside are cleaned before they touch the page
+function clean(h){
+  const t=document.createElement('template');t.innerHTML=h||'';
+  t.content.querySelectorAll('script,style,iframe,object,embed,link,meta,svg,form,base').forEach(e=>e.remove());
+  t.content.querySelectorAll('*').forEach(e=>[...e.attributes].forEach(a=>{
+    const n=a.name.toLowerCase(),v=a.value.trim().toLowerCase();
+    if(n.startsWith('on')||((n=='src'||n=='href')&&!(/^data:image\/(png|jpe?g|gif|webp);/.test(v)||(n=='href'&&/^https?:/.test(v)))))e.removeAttribute(a.name)}));
+  return t.innerHTML;
+}
+const safeCss=v=>String(v||'').replace(/[^#\w(),.% -]/g,'');
+const safeId=v=>String(v||'').replace(/[^\w-]/g,'').slice(0,40)||uid();
+function cleanFile(f){
+  const pages=(f.pages||[]).filter(p=>p&&typeof p=='object').map(p=>({
+    label:String(p.label||'Page').slice(0,80),mode:p.mode=='doc'?'doc':undefined,html:p.mode=='doc'?clean(p.html):undefined,
+    items:(p.items||[]).map(i=>({id:safeId(i.id),type:/^(card|shape|img)$/.test(i.type)?i.type:'card',x:+i.x||0,y:+i.y||0,w:+i.w||220,h:+i.h||140,
+      html:clean(i.html),bg:safeCss(i.bg),fill:safeCss(i.fill),shape:SHAPES[i.shape]?i.shape:'rect',group:i.group?safeId(i.group):undefined,
+      src:i.type=='img'&&/^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(i.src||'')?i.src:''})),
+    links:(p.links||[]).filter(l=>Array.isArray(l)&&l.length==2).map(l=>[safeId(l[0]),safeId(l[1])]),
+    strokes:(p.strokes||[]).map(st=>({p:(st.p||[]).map(q=>[+q[0]||0,+q[1]||0]),c:safeCss(st.c)||'#000000',w:+st.w||4,o:st.o?+st.o:undefined})),
+    v:{x:+(p.v&&p.v.x)||0,y:+(p.v&&p.v.y)||0,z:Math.min(3,Math.max(.2,+(p.v&&p.v.z)||1))}}));
+  return pages.length?{name:String(f.name||'Untitled').slice(0,200),pi:0,pages}:null;
+}
+$('#fopen').onclick=()=>$('#fopenin').click();
+$('#fopenin').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const d=JSON.parse(await f.text()),list=(d.file?[d.file]:(d.S&&d.S.boards)||[]).map(cleanFile).filter(Boolean);
+    if(!list.length)throw 0;
+    save();list.forEach(x=>S.boards.push(x));S.cur=S.boards.length-list.length;load();save();
+  }catch(err){alert('That is not a PixelNotes file.')}
+};
 $('#fsave').onclick=()=>saveFile(false);$('#fsaveas').onclick=()=>saveFile(true);
 addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()=='s'){e.preventDefault();saveFile(false)}});
 function bye(){leaving=true;window.close();$('#bye').classList.add('on')}
