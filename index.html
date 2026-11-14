@@ -208,6 +208,11 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
 #bar input[type=range]{width:84px;padding:0;border:0;box-shadow:none;background:transparent;accent-color:var(--acc)}
 #pprev{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid var(--ink);background:#fff;flex:none}
 #pprev i{display:block;border-radius:50%!important;background:#000}
+#bar,#bar>span{-webkit-user-select:none;user-select:none}
+#bar input,#bar textarea{-webkit-user-select:text;user-select:text} /* Safari cannot type into fields that are user-select:none */
+#bar input#name{border-bottom:2px solid var(--ink);padding:2px 6px}
+#bar input#name:focus{background:#fff;outline:none}
+@media (pointer:coarse){#bar input#name{min-height:44px;min-width:200px}}
 </style>
 </head>
 <body>
@@ -217,7 +222,7 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
 <div id="main">
   <div id="bar">
     <button id="tog" data-i="menu" title="Show/hide sidebar"></button>
-    <input id="name" placeholder="Untitled">
+    <input id="name" placeholder="Untitled" aria-label="File name" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
     <button id="add" class="cv" data-i="add">Card</button>
     <select id="shape" class="cv"><option value="">+ Shape</option><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option>
       <option value="diamond">Diamond</option><option value="triangle">Triangle</option></select>
@@ -606,6 +611,7 @@ function fmt(cmd,val){
   const s=getSelection();s.removeAllRanges();s.addRange(range);
   document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);growAll();save();
 }
+$('#bar').addEventListener('pointerdown',e=>{if(e.pointerType=='pen'&&!e.target.closest('button,select,input,textarea,[contenteditable]'))e.preventDefault()},true);
 $('#bar').onmousedown=e=>{if(!/SELECT|INPUT/.test(e.target.tagName))e.preventDefault()};
 document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>fmt(b.dataset.c));
 $('#font').onchange=e=>{if(e.target.value)fmt('fontName',e.target.value);e.target.value=''};
@@ -633,6 +639,7 @@ swatches('#bg',['#fffdf5','#fff3b0','#d7f5dc','#fbd5e0','#d3e6fb'],c=>{
 });
 
 $('#new').onclick=()=>{save();newBoard($('#tpl').value);$('#tpl').value='';load();save();$('#name').focus();$('#name').select()};
+$('#name').onkeydown=e=>{if(e.key=='Enter')e.target.blur()};
 $('#name').oninput=e=>{file().name=e.target.value;renderList();save()};
 // pages: tabs along the bottom, each page is its own whiteboard or note-taking method
 function renderTabs(){
