@@ -173,6 +173,20 @@ button>.pi:only-child{margin-right:0}
 #xsave{background:var(--acc)!important;color:#fff!important}
 #side h1{display:flex;align-items:center;gap:8px}
 #side h1 img{image-rendering:pixelated}
+
+/* phones and tablets */
+body{height:100vh;height:100dvh;touch-action:manipulation}
+#view,.card .h,#grip{touch-action:none}
+@media (max-width:760px){
+  #side{position:fixed;left:0;top:0;bottom:0;z-index:40;width:min(80vw,280px)!important;box-shadow:6px 0 0 var(--ink)}
+  #grip{display:none}
+  #bar{flex:none;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #bar>*{flex:none;white-space:nowrap}
+  #main,#docwrap{min-height:0}
+  #tabs{flex:none}
+  #hint{display:none}
+}
+@media (pointer:coarse){#bar button,#bar select,#bar input,#files button,#tabs .tab,#addpage,#new,#tpl{min-height:40px}}
 </style>
 </head>
 <body>
@@ -295,7 +309,7 @@ function renderList(){
     const x=document.createElement('button');x.innerHTML=icon('x');x.title='Delete';
     x.onclick=e=>{e.stopPropagation();if(!confirm('Delete "'+(b.name||'Untitled')+'"?'))return;
       S.boards.splice(i,1);if(!S.boards.length)newBoard();S.cur=Math.min(S.cur,S.boards.length-1);load();save()};
-    d.onclick=()=>{save();S.cur=i;load()};
+    d.onclick=()=>{save();S.cur=i;load();if(innerWidth<=760)setSide(0)};
     d.append(s,x);$('#list').append(d);
   });
 }
@@ -474,10 +488,22 @@ $('#docwrap').addEventListener('pointerdown',penDown,true);
 // view: pan + zoom
 function applyView(){const v=board().v;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`}
 const view=$('#view');
+const pinch=new Map();let pinchD=0;
+view.addEventListener('pointerdown',e=>{if(e.pointerType=='touch'){pinch.set(e.pointerId,[e.clientX,e.clientY]);pinchD=0}},true);
+addEventListener('pointermove',e=>{
+  if(!pinch.has(e.pointerId))return;pinch.set(e.pointerId,[e.clientX,e.clientY]);
+  if(pinch.size!=2||board().mode=='doc')return;
+  const[a,b]=[...pinch.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);
+  if(pinchD){const v=board().v,r=view.getBoundingClientRect(),mx=(a[0]+b[0])/2-r.left,my=(a[1]+b[1])/2-r.top,z=Math.min(3,Math.max(.2,v.z*d/pinchD));
+    v.x=mx-(mx-v.x)*z/v.z;v.y=my-(my-v.y)*z/v.z;v.z=z;applyView()}
+  pinchD=d;
+});
+const unpin=e=>{if(pinch.delete(e.pointerId)){pinchD=0;if(!pinch.size)save()}};
+addEventListener('pointerup',unpin);addEventListener('pointercancel',unpin);
 view.onpointerdown=e=>{
   if(e.target!==view&&e.target!==$('#world'))return;
   const v=board().v,ox=e.clientX-v.x,oy=e.clientY-v.y;
-  const mv=e=>{v.x=e.clientX-ox;v.y=e.clientY-oy;applyView()};
+  const mv=e=>{if(pinch.size>1)return;v.x=e.clientX-ox;v.y=e.clientY-oy;applyView()};
   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);save()};
   addEventListener('pointermove',mv);addEventListener('pointerup',up);
 };
@@ -636,7 +662,9 @@ $('#grip').onpointerdown=e=>{
   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};
   addEventListener('pointermove',mv);addEventListener('pointerup',up);
 };
-try{const w=localStorage.getItem('whiteboard.side');if(w!==null)setSide(+w)}catch(e){}
+const phone=()=>innerWidth<=760;
+try{const w=localStorage.getItem('whiteboard.side');if(w!==null)setSide(+w);else if(phone())setSide(0)}catch(e){}
+$('#main').addEventListener('pointerdown',()=>{if(phone()&&!document.body.classList.contains('noside'))setSide(0)},true);
 // sketch -> text prompt, built locally from the page (no AI service is called)
 const COLS=[['red','#d32f2f'],['orange','#f57c00'],['yellow','#fff176'],['green','#388e3c'],['blue','#1976d2'],['light blue','#90caf9'],['pink','#f8bbd0'],
   ['light green','#a5d6a7'],['cream','#fffdf5'],['pale yellow','#fff3b0'],['pale green','#d7f5dc'],['pale pink','#fbd5e0'],['pale blue','#d3e6fb'],

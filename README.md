@@ -4,6 +4,10 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 
 **Try it:** https://bobagart.github.io/PixelNotes/
 
+![The PixelNotes whiteboard](docs/screenshots/whiteboard.jpg)
+
+![A Cornell notes page that fills the whole page](docs/screenshots/cornell.jpg)
+
 ## Features
 
 - **Infinite whiteboard** with cards, shapes, images, arrows, freehand drawing and an eraser.
@@ -15,6 +19,7 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 - **AI prompt**: turns a page into a text prompt for an AI image tool (built locally, nothing is sent anywhere).
 - **Save, Save As and Open** files as `.json`, with an unsaved-changes prompt on Exit.
 - **Works offline** once installed.
+- **Phone friendly**: the toolbar scrolls sideways, the file list slides in over the canvas, and two fingers pinch to zoom the whiteboard.
 
 ## Install
 
