@@ -15,6 +15,8 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 - **Note-taking pages**: Cornell, Outline and Charting layouts that fill the whole page, plus a blank document.
 - **Several pages per file**, each its own whiteboard or note-taking method.
 - **Highlighter**: drag over text to highlight it.
+- **Drawing controls**: stroke size, opacity, undo and redo.
+- **Zoom** with the +/- buttons, a trackpad or two fingers (including Safari on iPhone, iPad and Mac).
 - **Pixel fonts and pixel icons** throughout.
 - **AI prompt**: turns a page into a text prompt for an AI image tool (built locally, nothing is sent anywhere).
 - **Save and Save As** to a Word document (`.doc`) or a PDF, with an unsaved-changes prompt on Exit.
