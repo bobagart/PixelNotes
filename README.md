@@ -19,7 +19,7 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 - **Zoom** with the +/- buttons, a trackpad or two fingers (including Safari on iPhone, iPad and Mac).
 - **Pixel fonts and pixel icons** throughout.
 - **AI prompt**: turns a page into a text prompt for an AI image tool (built locally, nothing is sent anywhere).
-- **Save and Save As** to a Word document (`.doc`) or a PDF, with an unsaved-changes prompt on Exit.
+- **Save and Save As** as Word (`.docx`), PDF, a PNG image (whiteboards) or a PixelNotes file you can open again, with an unsaved-changes prompt on Exit.
 - **Works offline** once installed.
 - **Phone friendly**: the toolbar scrolls sideways, the file list slides in over the canvas, and two fingers pinch to zoom the whiteboard.
 
@@ -49,7 +49,14 @@ Then open http://localhost:8000. The install and offline features need `http://`
 
 ## Your data
 
-Notes live in your browser's local storage, so they stay on your device. **Save** exports the current page as a Word document or a PDF to keep or share. Word keeps text, tables, colours and pictures; on a whiteboard it lists the cards and arrows as text. PDF uses your browser's print dialog (choose **Save as PDF**) and keeps the whiteboard's look, including drawings. Exports can't be loaded back into the app. Fonts are loaded from Google Fonts; offline, the app falls back to a plain monospace font.
+Notes live in your browser's local storage, so they stay on your device. **Save** offers four types:
+
+- **Word (`.docx`)**: the current page, with text, tables, colours and pictures. A whiteboard page becomes a picture of the board plus its text.
+- **PDF**: the current page through your browser's print dialog (choose **Save as PDF**), including drawings.
+- **PNG image**: the current whiteboard page as a picture.
+- **PixelNotes file** (`.pixelnotes`): the whole file with every page, so you can back it up or move it to another device and load it with **Open**.
+
+Only PixelNotes files can be opened again. Open files are cleaned before they are loaded, so files from other people cannot run scripts. Fonts are loaded from Google Fonts; offline, the app falls back to a plain monospace font.
 
 ## Roadmap
 
