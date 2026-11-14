@@ -213,10 +213,25 @@ body{height:100vh;height:100dvh;touch-action:manipulation}
 #bar input#name{border-bottom:2px solid var(--ink);padding:2px 6px}
 #bar input#name:focus{background:#fff;outline:none}
 @media (pointer:coarse){#bar input#name{min-height:44px;min-width:200px}}
+/* diary notebook */
+#page.diary{background:#5ec4b6;padding:34px 12px 60px;min-height:100%;counter-reset:leaf}
+.leaf{position:relative;width:min(680px,100%);height:788px;margin:0 auto 40px;overflow:hidden;outline:0;color:#1f1d36;
+  font:22px/32px VT323,"Courier New",monospace;padding:56px 24px 20px 78px;border:4px solid #1f1d36;box-shadow:6px 6px 0 #1f1d36;
+  counter-increment:leaf;overflow-wrap:anywhere;
+  background:linear-gradient(to right,transparent 63px,#f08a8a 63px,#f08a8a 66px,transparent 66px),
+    linear-gradient(#fffdf8 0 56px,transparent 56px),
+    repeating-linear-gradient(to bottom,#fffdf8 0 31px,#a9cdf2 31px 32px);
+  background-position:0 0,0 0,0 24px}
+.leaf::before{content:"";position:absolute;left:20px;right:20px;top:4px;height:30px;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='30' shape-rendering='crispEdges'%3E%3Crect x='10' y='0' width='12' height='4' fill='%231f1d36'/%3E%3Crect x='6' y='2' width='4' height='16' fill='%231f1d36'/%3E%3Crect x='22' y='2' width='4' height='16' fill='%231f1d36'/%3E%3Crect x='10' y='18' width='12' height='8' fill='%235ec4b6'/%3E%3C/svg%3E") repeat-x left top/32px 30px}
+.leaf::after{content:counter(leaf);position:absolute;right:12px;bottom:2px;font:16px VT323,monospace;color:#8aa0b8;pointer-events:none}
+.leaf:focus{box-shadow:6px 6px 0 #ff6b9d}
+#page.diary>.leaf{margin:0 auto 40px} /* beats the side margin given to other document content */
+@media print{#page.diary{background:#fff;padding:0}.leaf{break-after:page;box-shadow:none;margin:0 auto}}
 </style>
 </head>
 <body>
-<div id="side"><h1><img src="icons/logo.svg" width="28" height="28" alt=""> PixelNotes</h1><select id="tpl"><option value="">Whiteboard (blank)</option><option value="blankdoc">Document (blank)</option><option value="cornell">Cornell method (doc)</option><option value="outline">Outline method (doc)</option><option value="charting">Charting method (doc)</option><option value="mapping">Mapping method (whiteboard)</option></select><button id="new">+ New</button><div id="list"></div>
+<div id="side"><h1><img src="icons/logo.svg" width="28" height="28" alt=""> PixelNotes</h1><select id="tpl"><option value="">Whiteboard (blank)</option><option value="blankdoc">Document (blank)</option><option value="diary">Diary (notebook)</option><option value="cornell">Cornell method (doc)</option><option value="outline">Outline method (doc)</option><option value="charting">Charting method (doc)</option><option value="mapping">Mapping method (whiteboard)</option></select><button id="new">+ New</button><div id="list"></div>
   <div id="files"><button id="fopen" data-i="open" title="Open a PixelNotes file">Open</button><input type="file" id="fopenin" accept=".pixelnotes,.json,application/json" hidden><button id="fsave" data-i="save" title="Save as Word, PDF, PNG or a PixelNotes file (Ctrl+S)">Save</button><button id="fsaveas" data-i="save" title="Pick the file type again">Save As</button><button id="fexit" data-i="x" title="Close the app">Exit</button></div></div>
 <div id="grip" title="Drag to resize, drag to the left edge to hide"></div>
 <div id="main">
@@ -296,6 +311,7 @@ function icon(n){let d='';PX[n].forEach((row,y)=>[...row].forEach((c,x)=>{if(c==
 const K=(id,x,y,w,h,html,bg)=>({id,x,y,w,h,html,bg});
 const TPL={
   blankdoc:{name:'Untitled document',mode:'doc',html:'<p><br></p>'},
+  diary:{name:'Diary',mode:'doc',diary:true,html:'<div class="leaf" contenteditable="true"><div><b>{date}</b></div><div>Dear diary,</div><div><br></div></div>'},
   cornell:{name:'Cornell notes',mode:'doc',html:'<table><tr><td colspan="2" style="background:#d3e6fb"><b>Topic:</b> &nbsp;&nbsp; <b>Date:</b></td></tr><tr><td style="width:30%;height:620px;background:#fff8d6"><b>Cues / Questions</b><br></td><td><b>Notes</b><br></td></tr><tr><td colspan="2" style="height:140px;background:#e3f6e6"><b>Summary</b><br></td></tr></table>'},
   outline:{name:'Outline notes',mode:'doc',html:'<h2>Topic:</h2><p><b>I. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p><p style="margin-left:48px">1. Detail</p><p style="margin-left:48px">2. Detail</p><p style="margin-left:24px">B. Subtopic</p><p style="margin-left:48px">1. Detail</p><p><b>II. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p><p style="margin-left:24px">B. Subtopic</p><p><b>III. Main topic</b></p><p style="margin-left:24px">A. Subtopic</p>'},
   mapping:{name:'Mind map',links:[['m','a'],['m','b'],['m','c'],['m','d']],items:[
@@ -327,6 +343,7 @@ function save(){
 const file=()=>S.boards[S.cur];
 const board=()=>{const f=file();return f.pages[f.pi]}; // the current page
 function mkPage(k){const t=TPL[k]?JSON.parse(JSON.stringify(TPL[k])):{name:'Whiteboard'};
+  if(t.diary)t.html=t.html.replace('{date}',new Date().toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
   const{name,...pg}=t;return{label:name,items:[],links:[],strokes:[],v:{x:0,y:0,z:1},...pg}}
 function newBoard(k){const p=mkPage(k);S.boards.push({name:TPL[k]?p.label:'Untitled',pi:0,pages:[p]});S.cur=S.boards.length-1}
 
@@ -349,7 +366,7 @@ function load(){
   b.links=b.links||[];b.strokes=b.strokes||[];
   $('#world').innerHTML='<svg id="lines" style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0L10,5L0,10z" fill="#666"/></marker></defs></svg><svg style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none;z-index:5"><g id="ink"></g></svg>';
   renderList();renderTabs();docZoom=1;$('#sheet').style.zoom='';redoStack.length=0;updZoom();
-  if(b.mode=='doc'){$('#page').innerHTML=b.html||'';renderInk();return}
+  if(b.mode=='doc'){$('#page').classList.toggle('diary',!!b.diary);$('#page').contentEditable=b.diary?'false':'true';$('#page').innerHTML=b.html||'';renderInk();if(b.diary)requestAnimationFrame(()=>reflowDiary());return}
   b.items.forEach(addEl);applyView();draw();renderInk();
 }
 // cards and shapes grow with their text instead of scrolling
@@ -500,7 +517,7 @@ function applyHL(pts){
     if(q){const n=Math.ceil(Math.hypot(q[0]-p[0],q[1]-p[1])/4);for(let k=1;k<n;k++)dense.push([p[0]+(q[0]-p[0])*k/n,p[1]+(q[1]-p[1])*k/n])}});
   const runs=[];let cur=null; // a run = consecutive points on one text line of one editable
   dense.forEach(([x,y])=>{const c=caretAt(x,y);if(!c){cur=null;return}
-    const ed=c.startContainer.parentElement.closest('.t');
+    const ed=c.startContainer.parentElement.closest('[contenteditable="true"]');
     if(cur&&cur.ed==ed&&Math.abs(y-cur.y)<12)cur.b=c;else{cur={y,ed,a:c,b:c};runs.push(cur)}});
   runs.forEach(r=>{
     const[s0,e0]=r.a.compareBoundaryPoints(Range.START_TO_START,r.b)>0?[r.b,r.a]:[r.a,r.b];
@@ -657,7 +674,7 @@ function setSize(px){
       card.dataset.fs=px;if(card.dataset.type=='shape')fitShape(card);else{ed.style.fontSize=px+'px';grow(card)}
       ed.focus();save();return}
     // caret inside text: what you type next comes out in the new size
-    ed.focus();const sp=document.createElement('span');sp.style.fontSize=px+'px';sp.textContent='\u200B';
+    ((node.nodeType==1?node:node.parentElement).closest('[contenteditable="true"]')||ed).focus();const sp=document.createElement('span');sp.style.fontSize=px+'px';sp.textContent='\u200B';
     range.insertNode(sp);const nr=document.createRange();nr.setStart(sp.firstChild,1);nr.collapse(true);
     const sel=getSelection();sel.removeAllRanges();sel.addRange(nr);range=nr.cloneRange();save();return}
   if(!ed&&picked.size){ // nothing typed into, but items selected with the Select tool
@@ -705,7 +722,93 @@ function delPage(i){
 }
 $('#addpage').innerHTML='<option value="">+ Add page…</option><option value="board">Whiteboard</option>'+$('#tpl').innerHTML.split('</option>').slice(1).join('</option>');
 $('#addpage').onchange=e=>{if(!e.target.value)return;save();const f=file();f.pages.push(mkPage(e.target.value));f.pi=f.pages.length-1;e.target.value='';load();save()};
-$('#page').oninput=save;
+// Diary: fixed-size notebook pages. Text that runs past the last line moves to the next page (a new page is added
+// and the caret follows it); deleting pulls text back up; Backspace at the top of a page goes back to the page before.
+const leaves=()=>[...$('#page').querySelectorAll(':scope>.leaf')];
+const overflowing=l=>l.scrollHeight>l.clientHeight+1;
+const isEmptyLeaf=l=>!l.textContent.replace(/\u200B/g,'').trim()&&!l.querySelector('img,table');
+function newLeaf(after){const l=document.createElement('div');l.className='leaf';l.contentEditable='true';l.innerHTML='<div><br></div>';after?after.after(l):$('#page').append(l);return l}
+let caret=null;
+function moveOverflow(l,next,force){ // force: split the last paragraph instead of moving it whole
+  if(isEmptyLeaf(next)&&!(caret&&next.contains(caret.node)))next.innerHTML='';
+  let guard=0;
+  while(overflowing(l)&&guard++<5000){
+    const last=l.lastChild;if(!last)break;
+    const isBlock=last.nodeType==1&&/^(DIV|P|H[1-6]|UL|OL|TABLE|BLOCKQUOTE|PRE)$/.test(last.tagName);
+    if(isBlock&&l.childNodes.length>1&&(!force||!last.textContent.replace(/\u200B/g,'').trim())){next.prepend(last);continue} // empty lines move whole, never split
+    // one long paragraph (or loose text): move its last words across, one at a time
+    let box=l,tgt=next;
+    if(isBlock){box=last;tgt=next.firstChild&&next.firstChild.__from===last?next.firstChild:null;
+      if(!tgt){tgt=document.createElement(last.tagName);tgt.__from=last;next.prepend(tgt)}}
+    let t=box.lastChild;while(t&&t.nodeType==3&&!t.data){t.remove();t=box.lastChild}
+    if(!t)break;
+    if(t.nodeType==3){
+      let k=fitOffset(l,t);const sp=t.data.lastIndexOf(' ',k-1);if(k<t.data.length&&sp>0)k=sp+1; // jump straight to the last word that fits
+      if(!(k>0&&k<t.data.length)){const m=/\S+\s*$/.exec(t.data);k=m&&m.index>0?m.index:0}
+      if(k>0){const tail=t.splitText(k);if(caret&&caret.node===t&&caret.off>k){caret.node=tail;caret.off-=k}tgt.prepend(tail)}
+      else tgt.prepend(t)}
+    else tgt.prepend(t);
+  }
+}
+function fitOffset(l,t){ // how much of text node t still fits above the page's bottom margin (binary search, no DOM changes)
+  const lb=l.getBoundingClientRect(),cs=getComputedStyle(l),sc=lb.height/l.offsetHeight||1;
+  const limit=lb.top+(parseFloat(cs.borderTopWidth)+l.clientHeight-parseFloat(cs.paddingBottom))*sc,r=document.createRange();
+  let lo=0,hi=t.data.length;
+  while(lo<hi){const mid=(lo+hi+1)>>1;r.setStart(t,0);r.setEnd(t,mid);const rs=r.getClientRects();if((rs.length?rs[rs.length-1].bottom:0)<=limit+.5)lo=mid;else hi=mid-1}
+  return lo;
+}
+function pullBack(l,next){
+  while(next.firstChild&&!overflowing(l)){
+    if(isEmptyLeaf(next)&&!(caret&&next.contains(caret.node)))break;
+    const n=next.firstChild;l.append(n);
+    if(overflowing(l)){moveOverflow(l,next,true);break} // fill this page; the rest of that paragraph goes back
+  }
+}
+function reflowDiary(){
+  const s=getSelection();
+  caret=s.rangeCount&&$('#page').contains(s.anchorNode)?{node:s.anchorNode,off:s.anchorOffset}:null;
+  let ls=leaves();if(!ls.length){newLeaf();ls=leaves()}
+  for(let pass=0;pass<2;pass++) // second pass fills pages that the first pass left short
+  for(let i=0;i<ls.length;i++){
+    const l=ls[i];
+    while(ls[i+1]){
+      pullBack(l,ls[i+1]);
+      const nx=ls[i+1];
+      if(!overflowing(l)&&(!nx.firstChild||(isEmptyLeaf(nx)&&!(caret&&nx.contains(caret.node))))){nx.remove();ls=leaves();continue} // emptied: keep pulling from the page after
+      break;
+    }
+    if(overflowing(l)){moveOverflow(l,ls[i+1]||newLeaf(l));ls=leaves()}
+  }
+  // splitting can leave empty wrappers with no line break; they take no space but swallow Backspace presses
+  leaves().forEach(l=>[...l.children].forEach(d=>{if(!d.childNodes.length){if(caret&&caret.node===d)d.innerHTML='<br>';else d.remove()}}));
+  ls=leaves();
+  for(let i=ls.length-1;i>0;i--){if(isEmptyLeaf(ls[i])&&!(caret&&ls[i].contains(caret.node)))ls[i].remove();else break}
+  if(caret&&caret.node.isConnected){
+    const el=caret.node.nodeType==1?caret.node:caret.node.parentElement,leaf=el.closest('.leaf');
+    if(leaf){
+      if(document.activeElement!==leaf)leaf.focus();
+      const r=document.createRange(),max=caret.node.nodeType==3?caret.node.length:caret.node.childNodes.length;
+      r.setStart(caret.node,Math.min(caret.off,max));r.collapse(true);s.removeAllRanges();s.addRange(r);
+      const wr=$('#docwrap').getBoundingClientRect(),er=el.getBoundingClientRect();
+      if(er.bottom>wr.bottom-10||er.top<wr.top)el.scrollIntoView({block:'center'});
+    }
+  }
+  caret=null;
+}
+$('#page').addEventListener('keydown',e=>{
+  if(!board().diary||e.key!='Backspace')return;
+  const s=getSelection();if(!s.rangeCount||!s.isCollapsed)return;
+  const el=s.anchorNode.nodeType==1?s.anchorNode:s.anchorNode.parentElement,leaf=el&&el.closest('.leaf'),prev=leaf&&leaf.previousElementSibling;
+  if(!leaf||!prev||!prev.classList.contains('leaf'))return;
+  const before=document.createRange();before.selectNodeContents(leaf);before.setEnd(s.anchorNode,s.anchorOffset);
+  const onFirstLine=!leaf.firstChild||leaf.firstChild.contains(s.anchorNode)||s.anchorNode===leaf; // an emptied page has no lines left
+  if(before.toString().replace(/\u200B/g,'').length||!onFirstLine)return; // not at the very top of this page
+  e.preventDefault();
+  if(isEmptyLeaf(leaf))leaf.remove();
+  prev.focus();const end=document.createRange();end.selectNodeContents(prev);end.collapse(false);s.removeAllRanges();s.addRange(end);
+  reflowDiary();save();
+});
+$('#page').oninput=()=>{if(board().diary)reflowDiary();save()};
 // right-click menus: one floating menu, filled per target
 const menu=document.createElement('div');menu.id='menu';document.body.append(menu);
 const hideMenu=()=>menu.style.display='none';
@@ -912,6 +1015,7 @@ function blocks(parent,st){let x='',buf=[];
   flush();return x;
 }
 function block(el,st){
+  if(el.classList&&el.classList.contains('leaf'))return blocks(el,st)+'<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   const T=el.tagName;
   if(T=='TABLE')return table(el,st);
   if(T=='UL'||T=='OL')return [...el.children].map((li,i)=>para('<w:r><w:t xml:space="preserve">'+(T=='UL'?'\u2022 ':(i+1)+'. ')+'</w:t></w:r>'+inlineRuns(li.childNodes,styleOf(li,st)),null,'<w:ind w:left="360"/>')).join('');
@@ -1074,7 +1178,7 @@ const safeCss=v=>String(v||'').replace(/[^#\w(),.% -]/g,'');
 const safeId=v=>String(v||'').replace(/[^\w-]/g,'').slice(0,40)||uid();
 function cleanFile(f){
   const pages=(f.pages||[]).filter(p=>p&&typeof p=='object').map(p=>({
-    label:String(p.label||'Page').slice(0,80),mode:p.mode=='doc'?'doc':undefined,html:p.mode=='doc'?clean(p.html):undefined,
+    label:String(p.label||'Page').slice(0,80),mode:p.mode=='doc'?'doc':undefined,diary:p.mode=='doc'&&p.diary?true:undefined,html:p.mode=='doc'?clean(p.html):undefined,
     items:(p.items||[]).map(i=>({id:safeId(i.id),type:/^(card|shape|img)$/.test(i.type)?i.type:'card',x:+i.x||0,y:+i.y||0,w:+i.w||220,h:+i.h||140,
       html:clean(i.html),bg:safeCss(i.bg),fill:safeCss(i.fill),shape:SHAPES[i.shape]?i.shape:'rect',group:i.group?safeId(i.group):undefined,fs:Math.min(200,Math.max(6,+i.fs||0))||undefined,
       src:i.type=='img'&&/^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/.test(i.src||'')?i.src:''})),
