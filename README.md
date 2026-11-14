@@ -13,6 +13,7 @@ A pixel-art whiteboard and note-taking app. Sketch ideas on an infinite canvas, 
 - **Infinite whiteboard** with cards, shapes, images, arrows, freehand drawing and an eraser.
 - **Select, group and ungroup** items; grouped items move together.
 - **Note-taking pages**: Cornell, Outline and Charting layouts that fill the whole page, plus a blank document.
+- **Diary**: a pixel notebook with blue lines, a red margin and a spiral. When you write past the last line, a new page is added and you continue on it.
 - **Several pages per file**, each its own whiteboard or note-taking method.
 - **Highlighter**: drag over text to highlight it.
 - **Drawing controls**: stroke size, opacity, undo and redo.
