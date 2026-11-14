@@ -374,6 +374,7 @@ function addEl(it){
   c.querySelector('b').onclick=()=>{c.remove();ro.unobserve(c);board().links=board().links.filter(l=>!l.includes(it.id));draw();save()};
   c.querySelector('.h').onpointerdown=e=>{
     if(conn||pen)return; // connect and draw modes handle clicks in capture listeners
+    if(e.target.closest('b'))return; // the close button needs a normal click; moving the card to the front on pointerdown swallowed it
     e.stopPropagation();const z=board().v.z,ox=e.clientX,oy=e.clientY;
     // the whole selection or group moves together
     const ms=(picked.has(c)?[...picked]:grp(c)).map(m=>[m,parseFloat(m.style.left),parseFloat(m.style.top)]);
